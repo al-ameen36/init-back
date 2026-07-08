@@ -23,7 +23,9 @@ def list_issues_endpoint(repo: str):
     try:
         issues = get_issues(repo, limit=10, state="open")
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Failed to fetch issues: {e}")
+        raise HTTPException(
+            status_code=404, detail=f"Failed to fetch issues for repo:{repo}"
+        )
 
     return IssuesResponse(
         issues=[
