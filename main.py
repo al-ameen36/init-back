@@ -1,53 +1,64 @@
-from llm import analyze_issue, score_files
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from llm import analyze_issue, score_files, generate_developer_guide
 from graph_sitter import Codebase
-from gh_issues import format_issue
-from cli import select_issue_interactively
+from gh_issues import get_issue_by_number, format_issue
 from search import perform_search
 
-repo = "psf/requests"
+app = FastAPI(title="Codebase Analyzer API")
 
 
-def main():
-    # 1. Fetch and select an issue interactively
-    selected_issue = select_issue_interactively(repo)
+class AnalyzeRequest(BaseModel):
+    repo: str
+    issue_number: int
+
+
+class ScoredFile(BaseModel):
+    file: str
+    confidence_score: int
+    reasoning: str
+
+
+class AnalyzeResponse(BaseModel):
+    scored_files: list[ScoredFile]
+    developer_guide: str
+
+
+@app.post("/analyze", response_model=AnalyzeResponse)
+def analyze_endpoint(req: AnalyzeRequest):
+    try:
+        # 1. Fetch issue
+        selected_issue = get_issue_by_number(req.repo, req.issue_number)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Failed to fetch issue: {e}")
 
     issue_text = format_issue(selected_issue)
-    print(f"\n{'=' * 60}")
-    print(f"Analyzing: #{selected_issue['number']} - {selected_issue['title']}")
-    print(f"{'=' * 60}\n")
 
     # 2. Get search queries from LLM
-    print("Generating search queries...")
     queries = analyze_issue(issue_text)
-    print(f"Queries: {queries}\n")
 
     # 3. Initialize codebase and search
-    print("Searching codebase...")
-    codebase = Codebase.from_repo(repo)
+    try:
+        codebase = Codebase.from_repo(req.repo)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to initialize codebase: {e}"
+        )
+
     file_matches = perform_search(codebase, queries)
 
-    if not file_matches:
-        print("No matches found in the codebase.")
-        return
+    scored_files = []
+    if file_matches:
+        # 4. Score files based on matches
+        scored_files = score_files(issue_text, file_matches)
+        # 5. Sort by confidence score descending
+        scored_files.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
 
-    # 4. Score files based on matches
-    print(f"Found matches in {len(file_matches)} files. Scoring relevance...")
-    scored_files = score_files(issue_text, file_matches)
+    # 6. Generate Developer Guide
+    developer_guide = generate_developer_guide(issue_text, scored_files)
 
-    # 5. Sort by confidence score descending
-    scored_files.sort(key=lambda x: x["confidence_score"], reverse=True)
-
-    print("\n" + "=" * 80)
-    print(f"{'CONFIDENCE':<12} | {'FILE PATH':<40} | REASONING")
-    print("=" * 80)
-    import textwrap
-
-    for sf in scored_files:
-        score_str = f"{sf['confidence_score']}%"
-        reasoning = textwrap.shorten(sf["reasoning"], width=60, placeholder="...")
-        print(f"{score_str:<12} | {sf['file']:<40} | {reasoning}")
-    print("=" * 80)
-
-
-if __name__ == "__main__":
-    main()
+    return AnalyzeResponse(
+        scored_files=[ScoredFile(**sf) for sf in scored_files],
+        developer_guide=developer_guide,
+    )

@@ -45,6 +45,22 @@ def get_issues(repo: str, limit: int = 10, state: str = "open") -> list[dict]:
     return issues
 
 
+def get_issue_by_number(repo: str, issue_number: int) -> dict:
+    """Fetch a specific issue by number."""
+    url = f"{GITHUB_API}/repos/{repo}/issues/{issue_number}"
+    resp = requests.get(url, timeout=15)
+    resp.raise_for_status()
+    item = resp.json()
+
+    return {
+        "number": item["number"],
+        "title": item["title"],
+        "body": item.get("body", "") or "",
+        "url": item["html_url"],
+        "labels": [label["name"] for label in item.get("labels", [])],
+    }
+
+
 def format_issue(issue: dict) -> str:
     """Format an issue dict into a text block suitable for LLM analysis."""
     lines = [

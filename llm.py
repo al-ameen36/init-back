@@ -137,3 +137,35 @@ def score_files(issue_text: str, file_matches: dict[str, list[str]]) -> list[dic
         return []
 
     return json.loads(content)
+
+
+GUIDE_PROMPT = """
+You are an expert software engineer helping a developer solve a GitHub issue.
+You have the issue description and a list of files that were matched by a codebase search, along with their relevance scores and snippets.
+
+Write a concise, actionable guide (1-3 short paragraphs) on how to get started solving the issue. 
+Mention the most relevant files and suggest where they should look first or what they might need to change.
+Keep it strictly technical and brief.
+"""
+
+
+def generate_developer_guide(issue_text: str, scored_files: list[dict]) -> str:
+    if not scored_files:
+        return "No relevant files found. Please check the issue description or expand the search."
+
+    # Format the input
+    context = f"ISSUE:\n{issue_text}\n\nSCORED FILES:\n"
+    for sf in scored_files:
+        if sf["confidence_score"] > 0:
+            context += f"- {sf['file']} (Score: {sf['confidence_score']}%): {sf['reasoning']}\n"
+
+    response = client.chat.completions.create(
+        model=os.environ["OPENAI_MODEL"],
+        temperature=0,
+        messages=[
+            {"role": "system", "content": GUIDE_PROMPT},
+            {"role": "user", "content": context},
+        ],
+    )
+
+    return response.choices[0].message.content or "No guide could be generated."
