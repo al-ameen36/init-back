@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from gh_issues import get_issues, format_relative_time
+from features.gh_issues import get_issues, format_relative_time
 
 router = APIRouter(prefix="/issues")
 

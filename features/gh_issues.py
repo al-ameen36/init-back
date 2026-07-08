@@ -103,3 +103,16 @@ def format_relative_time(iso_timestamp: str) -> str:
         return f"{months}mo ago"
     years = months // 12
     return f"{years}y ago"
+
+
+def get_repo_metadata(repo: str) -> dict:
+    """Fetch repo-level metadata not available on individual issues."""
+    url = f"{GITHUB_API}/repos/{repo}"
+    resp = requests.get(url, timeout=15)
+    resp.raise_for_status()
+    item = resp.json()
+
+    return {
+        "stars": item.get("stargazers_count", 0),
+        "language": item.get("language") or "Unknown",
+    }

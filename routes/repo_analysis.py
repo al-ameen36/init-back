@@ -1,11 +1,14 @@
-from gh_issues import format_relative_time
-from llm import generate_investigation_guide, score_files
-from search import perform_search
 from graph_sitter import Codebase
-from llm import analyze_issue
-from gh_issues import format_issue, get_issue_by_number
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from features.llm import generate_investigation_guide, score_files, analyze_issue
+from features.search import perform_search
+from features.gh_issues import (
+    format_relative_time,
+    format_issue,
+    get_issue_by_number,
+    get_repo_metadata,
+)
 
 router = APIRouter(prefix="/analyze")
 
@@ -31,6 +34,13 @@ class InvestigationGuide(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
+    number: int
+    title: str
+    repo: str
+    language: str
+    matchScore: int
+    matchReasons: list[str]
+    related: list[str]
     scored_files: list[ScoredFile]
     guide: InvestigationGuide
 
@@ -42,6 +52,11 @@ def analyze_endpoint(req: AnalyzeRequest):
         selected_issue = get_issue_by_number(req.repo, req.issue_number)
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Failed to fetch issue: {e}")
+
+    try:
+        repo_meta = get_repo_metadata(req.repo)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Failed to fetch repo: {e}")
 
     issue_text = format_issue(selected_issue)
 
@@ -77,7 +92,23 @@ def analyze_endpoint(req: AnalyzeRequest):
         investigation_path=guide_data.get("investigation_path", []),
     )
 
+    match_score = scored_files[0]["confidence_score"] if scored_files else 0
+    # Dedup reasoning strings — score_files can emit the same reasoning
+    # multiple times across snippet matches within one file
+    match_reasons = list(
+        dict.fromkeys(
+            sf["reasoning"] for sf in scored_files if sf.get("confidence_score", 0) > 0
+        )
+    )
+
     return AnalyzeResponse(
+        number=selected_issue["number"],
+        title=selected_issue["title"],
+        repo=req.repo,
+        language=repo_meta["language"],
+        matchScore=match_score,
+        matchReasons=match_reasons,
+        related=[],
         scored_files=[ScoredFile(**sf) for sf in scored_files],
         guide=guide,
     )
