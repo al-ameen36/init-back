@@ -139,19 +139,48 @@ def score_files(issue_text: str, file_matches: dict[str, list[str]]) -> list[dic
     return json.loads(content)
 
 
+GUIDE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "difficulty": {
+            "type": "string",
+            "enum": ["Low", "Medium", "High"],
+        },
+        "summary": {"type": "string"},
+        "relevant_files": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "investigation_path": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": ["difficulty", "summary", "relevant_files", "investigation_path"],
+}
+
 GUIDE_PROMPT = """
 You are an expert software engineer helping a developer solve a GitHub issue.
 You have the issue description and a list of files that were matched by a codebase search, along with their relevance scores and snippets.
 
-Write a concise, actionable guide (1-3 short paragraphs) on how to get started solving the issue. 
-Mention the most relevant files and suggest where they should look first or what they might need to change.
-Keep it strictly technical and brief.
+Produce a structured investigation guide with the following fields:
+- "difficulty": Your estimate of how hard the issue is to resolve. One of "Low", "Medium", "High".
+- "summary": A concise 2-4 sentence summary of the issue and what needs to change.
+- "relevant_files": An ordered list of file paths most relevant to resolving the issue, most important first.
+- "investigation_path": An ordered list of short, actionable steps (3-6 steps) a contributor should follow, starting with reproducing/understanding the problem and ending with verification (e.g. running tests).
+
+Keep every field strictly technical and brief.
 """
 
 
-def generate_developer_guide(issue_text: str, scored_files: list[dict]) -> str:
+def generate_investigation_guide(issue_text: str, scored_files: list[dict]) -> dict:
     if not scored_files:
-        return "No relevant files found. Please check the issue description or expand the search."
+        return {
+            "difficulty": "Medium",
+            "summary": "No relevant files found. Please check the issue description or expand the search.",
+            "relevant_files": [],
+            "investigation_path": [],
+        }
 
     # Format the input
     context = f"ISSUE:\n{issue_text}\n\nSCORED FILES:\n"
@@ -166,6 +195,20 @@ def generate_developer_guide(issue_text: str, scored_files: list[dict]) -> str:
             {"role": "system", "content": GUIDE_PROMPT},
             {"role": "user", "content": context},
         ],
+        extra_body={
+            "structured_outputs": {
+                "json": GUIDE_SCHEMA,
+            }
+        },
     )
 
-    return response.choices[0].message.content or "No guide could be generated."
+    content = response.choices[0].message.content
+    if not content:
+        return {
+            "difficulty": "Medium",
+            "summary": "No guide could be generated.",
+            "relevant_files": [],
+            "investigation_path": [],
+        }
+
+    return json.loads(content)
