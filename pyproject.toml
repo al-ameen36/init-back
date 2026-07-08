@@ -1,0 +1,10 @@
+[project]
+name = "analyzer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "graph-sitter>=0.56.14",
+    "openai>=1.109.1",
+]
