@@ -61,7 +61,10 @@ def analyze_issue(issue_text: str) -> list[str]:
             }
         },
     )
+    content = response.choices[0].message.content
+    if not content:
+        return []
 
-    terms = json.loads(response.choices[0].message.content)
+    terms = json.loads(content)
 
     return terms

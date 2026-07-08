@@ -1,37 +1,28 @@
 from llm import analyze_issue
 from graph_sitter import Codebase
-from issue_text import ISSUE
-
+from gh_issues import format_issue
+from cli import select_issue_interactively
+from search import perform_search
 
 repo = "psf/requests"
 
 
-if __name__ == "__main__":
+def main():
+    # 1. Fetch and select an issue interactively
+    selected_issue = select_issue_interactively(repo)
+
+    issue_text = format_issue(selected_issue)
+    print(f"\n{'=' * 60}")
+    print(f"Analyzing: #{selected_issue['number']} - {selected_issue['title']}")
+    print(f"{'=' * 60}\n")
+
+    # 2. Get search queries from LLM
+    queries = analyze_issue(issue_text)
+
+    # 3. Initialize codebase and search
     codebase = Codebase.from_repo(repo)
+    perform_search(codebase, queries)
 
-    queries = analyze_issue(ISSUE)
 
-    for query in queries:
-        # First try an exact symbol lookup
-        symbol = codebase.get_symbol(query, optional=True)
-        if symbol is not None:
-            print(f"Symbol match for '{query}':")
-            print(f"  {symbol.name} in {symbol.filepath}")
-            print(f"  {symbol.source[:200]}")
-            print()
-            continue
-
-        # Fall back to regex search across all files
-        print(f"Searching files for '{query}':")
-        found = False
-        for file in codebase.files:
-            results = file.search(query)
-            if results:
-                found = True
-                for result in results:
-                    print(f"  {file.filepath}:{result.start_point[0]+1}")
-                    # Show surrounding context: the parent statement/function
-                    print(f"    ...{result.source.strip()[:120]}...")
-        if not found:
-            print("  (no results)")
-        print()
+if __name__ == "__main__":
+    main()
