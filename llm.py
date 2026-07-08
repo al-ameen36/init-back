@@ -68,3 +68,72 @@ def analyze_issue(issue_text: str) -> list[str]:
     terms = json.loads(content)
 
     return terms
+
+
+SCORE_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "file": {"type": "string"},
+            "confidence_score": {"type": "integer"},
+            "reasoning": {"type": "string"},
+        },
+        "required": ["file", "confidence_score", "reasoning"],
+    },
+}
+
+SCORE_PROMPT = """
+You are an expert software engineer.
+
+You will be given a GitHub issue and a list of files with contextual code snippets 
+that matched search queries derived from the issue.
+
+Your task is to evaluate how relevant each file is to resolving the issue.
+Return a JSON array of objects. Each object must have:
+- "file": The file path.
+- "confidence_score": An integer from 0 to 100 indicating relevance.
+- "reasoning": A very short explanation (max 10 words) of why the file is or isn't relevant based on the matches.
+
+Focus heavily on the context of the snippets and how they relate to the core problem described in the issue.
+"""
+
+
+def score_files(issue_text: str, file_matches: dict[str, list[str]]) -> list[dict]:
+    if not file_matches:
+        return []
+
+    # Format matches into a text block
+    matches_text = ""
+    for filepath, snippets in file_matches.items():
+        matches_text += f"\n--- File: {filepath} ---\n"
+        matches_text += "\n\n".join(snippets)
+        matches_text += "\n"
+
+    user_content = f"ISSUE:\n{issue_text}\n\nMATCHES:\n{matches_text}"
+
+    response = client.chat.completions.create(
+        model=os.environ["OPENAI_MODEL"],
+        temperature=0,
+        messages=[
+            {
+                "role": "system",
+                "content": SCORE_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": user_content,
+            },
+        ],
+        extra_body={
+            "structured_outputs": {
+                "json": SCORE_SCHEMA,
+            }
+        },
+    )
+
+    content = response.choices[0].message.content
+    if not content:
+        return []
+
+    return json.loads(content)
