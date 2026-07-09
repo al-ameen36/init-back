@@ -12,6 +12,7 @@ class IssueSummary(BaseModel):
     labels: list[str]
     comments: int
     opened: str
+    repo: str
 
 
 class IssuesResponse(BaseModel):
@@ -23,6 +24,7 @@ def list_issues_endpoint(repo: str):
     try:
         issues = get_issues(repo, limit=10, state="open")
     except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=404, detail=f"Failed to fetch issues for repo:{repo}"
         )
@@ -36,6 +38,7 @@ def list_issues_endpoint(repo: str):
                 labels=issue["labels"],
                 comments=issue.get("comments", 0),
                 opened=format_relative_time(issue["created_at"]),
+                repo=repo,
             )
             for issue in issues
         ]

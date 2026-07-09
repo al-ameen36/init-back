@@ -51,22 +51,29 @@ def analyze_endpoint(req: AnalyzeRequest):
         # 1. Fetch issue
         selected_issue = get_issue_by_number(req.repo, req.issue_number)
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=404, detail=f"Failed to fetch issue: {e}")
 
     try:
         repo_meta = get_repo_metadata(req.repo)
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=404, detail=f"Failed to fetch repo: {e}")
 
     issue_text = format_issue(selected_issue)
 
     # 2. Get search queries from LLM
-    queries = analyze_issue(issue_text)
+    try:
+        queries = analyze_issue(issue_text)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=404, detail=f"Failed to analyze issue: {e}")
 
     # 3. Initialize codebase and search
     try:
         codebase = Codebase.from_repo(req.repo)
     except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=500, detail=f"Failed to initialize codebase: {e}"
         )
