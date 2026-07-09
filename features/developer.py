@@ -67,6 +67,14 @@ async def analyze_developer(
             "repositories",
             data={
                 "count": len(repositories),
+                "repos": [
+                    {
+                        "name": repo["name"],
+                        "language": repo.get("language"),
+                        "stars": repo.get("stargazers_count", 0),
+                    }
+                    for repo in repositories
+                ],
             },
         )
 
