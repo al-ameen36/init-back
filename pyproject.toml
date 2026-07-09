@@ -5,10 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115.0",
     "graph-sitter>=0.56.14",
     "openai>=1.109.1",
     "pygithub>=2.8.1",
     "ruff>=0.15.20",
     "rust-just>=1.55.1",
+    "sse-starlette>=2.1.0",
     "ty>=0.0.56",
 ]

@@ -140,21 +140,25 @@ name = "analyzer"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "fastapi" },
     { name = "graph-sitter" },
     { name = "openai" },
     { name = "pygithub" },
     { name = "ruff" },
     { name = "rust-just" },
+    { name = "sse-starlette" },
     { name = "ty" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
     { name = "graph-sitter", specifier = ">=0.56.14" },
     { name = "openai", specifier = ">=1.109.1" },
     { name = "pygithub", specifier = ">=2.8.1" },
     { name = "ruff", specifier = ">=0.15.20" },
     { name = "rust-just", specifier = ">=1.55.1" },
+    { name = "sse-starlette", specifier = ">=2.1.0" },
     { name = "ty", specifier = ">=0.0.56" },
 ]
 
