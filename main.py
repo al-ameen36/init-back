@@ -1,13 +1,12 @@
 import logging
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routes import (
-    developer_router,
-    issues_router,
-    repo_router,
-)
+
+from supabase_client import init_supabase
+from routes import developer_router, issues_router, repo_router, auth_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,9 +18,20 @@ logger = logging.getLogger("init")
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
 
-app = FastAPI(title="Init API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_supabase()
+    logger.info("Supabase client initialized")
+    yield
+    logger.info("Shutting down")
+
+
+app = FastAPI(title="Init API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,6 +62,7 @@ async def log_requests(request: Request, call_next: Callable) -> object:
 app.include_router(developer_router)
 app.include_router(issues_router)
 app.include_router(repo_router)
+app.include_router(auth_router)
 
 
 @app.get("/health")
