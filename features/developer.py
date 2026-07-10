@@ -11,6 +11,7 @@ from features.github import (
     get_primary_languages,
     get_pull_request_stats,
     get_repositories,
+    get_total_commits,
     get_total_stars,
     get_user,
 )
@@ -119,6 +120,10 @@ async def analyze_developer(
         logger.info("job=%s fetching pull request stats", job_id)
         pr_stats = await asyncio.to_thread(
             get_pull_request_stats,
+            username,
+        )
+        pr_stats["total_commits"] = await asyncio.to_thread(
+            get_total_commits,
             username,
         )
 

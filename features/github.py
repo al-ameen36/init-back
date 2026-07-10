@@ -118,6 +118,30 @@ def get_pull_request_stats(
     }
 
 
+def get_total_commits(username: str) -> int:
+    """Total commit contributions for the user (current contribution year)."""
+    query = f"""
+    query {{
+      user(login: "{username}") {{
+        contributionsCollection {{
+          totalCommitContributions
+        }}
+      }}
+    }}
+    """
+
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": query},
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    data = response.json()["data"]["user"]["contributionsCollection"]
+    return data.get("totalCommitContributions", 0)
+
+
 def get_repository_contents(
     owner: str,
     repo: str,

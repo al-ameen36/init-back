@@ -16,6 +16,7 @@ router = APIRouter(prefix="/analyze")
 class AnalyzeRequest(BaseModel):
     repo: str
     issue_number: int
+    developer_profile: dict | None = None
 
 
 class ScoredFile(BaseModel):
