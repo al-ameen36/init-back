@@ -155,8 +155,18 @@ GUIDE_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        "required_skills": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
     },
-    "required": ["difficulty", "summary", "relevant_files", "investigation_path"],
+    "required": [
+        "difficulty",
+        "summary",
+        "relevant_files",
+        "investigation_path",
+        "required_skills",
+    ],
 }
 
 GUIDE_PROMPT = """
@@ -168,6 +178,7 @@ Produce a structured investigation guide with the following fields:
 - "summary": A concise 2-4 sentence summary of the issue and what needs to change.
 - "relevant_files": An ordered list of file paths most relevant to resolving the issue, most important first.
 - "investigation_path": An ordered list of short, actionable steps (3-6 steps) a contributor should follow, starting with reproducing/understanding the problem and ending with verification (e.g. running tests).
+- "required_skills": A concise list of the specific technologies, languages, frameworks, or skills a developer needs to know to solve this issue (e.g. "React", "GraphQL", "Docker", "PostgreSQL"). Use canonical, recognizable names, one per item.
 
 Keep every field strictly technical and brief.
 """
@@ -180,6 +191,7 @@ def generate_investigation_guide(issue_text: str, scored_files: list[dict]) -> d
             "summary": "No relevant files found. Please check the issue description or expand the search.",
             "relevant_files": [],
             "investigation_path": [],
+            "required_skills": [],
         }
 
     # Format the input
@@ -209,6 +221,7 @@ def generate_investigation_guide(issue_text: str, scored_files: list[dict]) -> d
             "summary": "No guide could be generated.",
             "relevant_files": [],
             "investigation_path": [],
+            "required_skills": [],
         }
 
     return json.loads(content)

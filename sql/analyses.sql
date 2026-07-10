@@ -1,4 +1,4 @@
-create table if not exists public.analyses (
+create table if not exists public.analysis (
     id bigint generated always as identity primary key,
     repo text not null,
     issue_number integer not null,
@@ -14,7 +14,7 @@ create table if not exists public.analyses (
     unique (repo, issue_number, profile_key)
 );
 
-create index if not exists analyses_repo_idx on public.analyses (repo);
-create index if not exists analyses_profile_idx on public.analyses (profile_key);
+create index if not exists analysis_repo_idx on public.analysis (repo);
+create index if not exists analysis_profile_idx on public.analysis (profile_key);
 
-alter table public.analyses enable row level security;
+alter table public.analysis enable row level security;

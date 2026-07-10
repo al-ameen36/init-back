@@ -41,6 +41,7 @@ class InvestigationGuide(BaseModel):
     summary: str
     relevant_files: list[str]
     investigation_path: list[str]
+    required_skills: list[str] = []
 
 
 class AnalyzeResponse(BaseModel):
@@ -79,6 +80,7 @@ def analyze_one(repo, issue_number, developer_profile, codebase, repo_meta):
         summary=guide_data.get("summary", ""),
         relevant_files=guide_data.get("relevant_files", []),
         investigation_path=guide_data.get("investigation_path", []),
+        required_skills=guide_data.get("required_skills", []),
     )
 
     match_score = scored_files[0]["confidence_score"] if scored_files else 0
@@ -141,7 +143,7 @@ async def _save_cached(repo: str, num: int, pk: str, r: AnalyzeResponse) -> None
     }
     try:
         await (
-            supabase.table("analyses")
+            supabase.table("analysis")
             .upsert(row, on_conflict="repo,issue_number,profile_key")
             .execute()
         )
@@ -158,12 +160,12 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
     pk = profile_key_of(req.developer_profile)
     supabase = get_supabase()
 
-    # 1. Load any cached analyses for this repo + profile.
+    # 1. Load any cached analysis for this repo + profile.
     cached_map: dict[int, dict[str, Any]] = {}
     if not req.force and supabase is not None:
         try:
             res = (
-                await supabase.table("analyses")
+                await supabase.table("analysis")
                 .select("*")
                 .eq("repo", req.repo)
                 .eq("profile_key", pk)

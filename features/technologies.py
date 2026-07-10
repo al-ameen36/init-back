@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 
 import json
@@ -9,6 +10,78 @@ from features.github import (
     download_file,
     get_repository_contents,
 )
+
+# Words that carry no tech meaning on their own and are dropped from labels.
+NOISE_WORDS = {
+    "start",
+    "core",
+    "js",
+    "ts",
+    "cli",
+    "plugin",
+    "api",
+    "sdk",
+    "ui",
+    "utils",
+    "lib",
+    "app",
+    "the",
+    "server",
+    "client",
+}
+
+# Generic frameworks that are implied by a brand scope and dropped from the
+# display label (but kept as matching tokens elsewhere).
+GENERIC_FRAMEWORKS = {
+    "react",
+    "vue",
+    "svelte",
+    "angular",
+    "solid",
+    "node",
+    "next",
+    "nuxt",
+    "astro",
+    "preact",
+    "ember",
+}
+
+
+def normalize_package(raw: str) -> str:
+    """Turn a raw package identifier into a canonical, display-friendly label.
+
+    e.g. ``@tanstack-start/react-router`` -> ``Tanstack Router``,
+    ``@vue/cli-plugin-router`` -> ``Vue Router``, ``react`` -> ``React``.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return raw
+
+    scope: str | None = None
+    name = raw
+    if raw.startswith("@"):
+        parts = raw.split("/", 1)
+        if len(parts) == 2:
+            scope = parts[0][1:]  # drop the leading "@"
+            name = parts[1]
+
+    words = [w for w in re.split(r"[-_./\s]", name) if w]
+    words = [w for w in words if w.lower() not in NOISE_WORDS]
+
+    label_words: list[str] = []
+    if scope:
+        label_words.append(scope)
+        # A brand scope already implies the framework, so drop a leading
+        # generic framework word from the name for a cleaner label.
+        if words and words[0].lower() in GENERIC_FRAMEWORKS:
+            words = words[1:]
+
+    label_words.extend(words)
+
+    if not label_words:
+        return raw
+
+    return " ".join(w[:1].upper() + w[1:] for w in label_words)
 
 
 SUPPORTED_MANIFESTS = (
@@ -133,7 +206,9 @@ def extract_developer_packages(
                 repo_name,
             )
 
-            counter.update(packages)
+            counter.update(
+                norm for norm in (normalize_package(p) for p in packages) if norm
+            )
 
         except Exception:
             continue
