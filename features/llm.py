@@ -4,7 +4,7 @@ import os
 
 client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY", "dummy"),
-    base_url=os.environ["OPENAI_BASE_URL"],
+    base_url=os.environ.get("OPENAI_BASE_URL"),
 )
 
 SCHEMA = {
