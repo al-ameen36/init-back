@@ -57,6 +57,32 @@ def get_repositories(username: str) -> list[dict]:
     return response.json()
 
 
+def get_repo(owner: str, name: str) -> dict:
+    response = requests.get(
+        f"{BASE_URL}/repos/{owner}/{name}",
+        headers=HEADERS,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    repo = response.json()
+
+    return {
+        "owner": owner,
+        "name": name,
+        "full_name": repo.get("full_name", f"{owner}/{name}"),
+        "description": repo.get("description"),
+        "language": repo.get("language"),
+        "stars": repo.get("stargazers_count", 0),
+        "forks": repo.get("forks_count", 0),
+        "open_issues_count": repo.get("open_issues_count", 0),
+        "html_url": repo.get("html_url"),
+        "pushed_at": repo.get("pushed_at"),
+        "topics": repo.get("topics", []),
+    }
+
+
 def get_total_stars(
     repositories: list[dict],
 ) -> int:

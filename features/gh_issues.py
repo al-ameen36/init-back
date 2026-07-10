@@ -4,12 +4,19 @@ from datetime import datetime, timezone
 
 import requests
 
+from features.github import HEADERS
+
 
 GITHUB_API = "https://api.github.com"
 
 
-def get_issues(repo: str, limit: int = 10, state: str = "open") -> list[dict]:
+def get_issues(repo: str, limit: int = 5, state: str = "open") -> list[dict]:
     """Fetch issues from a GitHub repo.
+
+    Uses the Search API with ``is:issue`` so pull requests are excluded at the
+    source. The plain ``/repos/{repo}/issues`` endpoint interleaves PRs, and a
+    PR-heavy repo (e.g. Kong/insomnia) can return an all-PR page that looks
+    empty once those are filtered out.
 
     Args:
         repo: Owner/name format, e.g. "psf/requests".
@@ -20,19 +27,21 @@ def get_issues(repo: str, limit: int = 10, state: str = "open") -> list[dict]:
         A list of issue dicts with keys: number, title, body, url, labels,
         comments, created_at.
     """
-    url = f"{GITHUB_API}/repos/{repo}/issues"
+    url = f"{GITHUB_API}/search/issues"
+    query = f"repo:{repo} is:issue state:{state}"
     params = {
-        "state": state,
+        "q": query,
         "per_page": limit,
         "sort": "created",
-        "direction": "desc",
+        "order": "desc",
     }
-    resp = requests.get(url, params=params, timeout=15)
+    resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
     resp.raise_for_status()
 
     issues = []
-    for item in resp.json():
-        # The /issues endpoint also returns pull requests; skip those
+    for item in resp.json().get("items", []):
+        # Defensive: the is:issue qualifier already excludes PRs, but skip
+        # anything that sneaks through.
         if "pull_request" in item:
             continue
         issues.append(

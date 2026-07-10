@@ -20,9 +20,9 @@ class IssuesResponse(BaseModel):
 
 
 @router.get("/{repo:path}", response_model=IssuesResponse)
-def list_issues_endpoint(repo: str):
+def list_issues_endpoint(repo: str, limit: int = 5):
     try:
-        issues = get_issues(repo, limit=10, state="open")
+        issues = get_issues(repo, limit=limit, state="open")
     except Exception as e:
         print(e)
         raise HTTPException(

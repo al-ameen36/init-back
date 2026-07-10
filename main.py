@@ -6,7 +6,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from supabase_client import init_supabase
-from routes import developer_router, issues_router, repo_router, auth_router
+from routes import (
+    developer_router,
+    issues_router,
+    repo_router,
+    repo_meta_router,
+    auth_router,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +68,7 @@ async def log_requests(request: Request, call_next: Callable) -> object:
 app.include_router(developer_router)
 app.include_router(issues_router)
 app.include_router(repo_router)
+app.include_router(repo_meta_router)
 app.include_router(auth_router)
 
 
