@@ -3,7 +3,8 @@ import json
 from typing import Any, cast
 
 from fastapi.concurrency import run_in_threadpool
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from graph_sitter import Codebase
 from pydantic import BaseModel
 from supabase_client import get_supabase
@@ -148,8 +149,12 @@ async def _save_cached(repo: str, num: int, pk: str, r: AnalyzeResponse) -> None
         print("Failed to cache analysis:", e)
 
 
-@router.post("/", response_model=list[AnalyzeResponse])
-async def analyze_endpoint(req: BatchAnalyzeRequest):
+def _sse(payload: dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@router.post("/")
+async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
     pk = profile_key_of(req.developer_profile)
     supabase = get_supabase()
 
@@ -173,22 +178,47 @@ async def analyze_endpoint(req: BatchAnalyzeRequest):
 
     to_compute = [n for n in req.issue_numbers if n not in cached_map]
 
-    # 2. Compute only the issues that aren't cached, reusing one codebase build.
-    computed: list[AnalyzeResponse] = []
-    if to_compute:
+    async def event_gen():
+        # Emit cached results immediately so they paint without waiting.
+        for row in cached_map.values():
+            yield _sse(
+                {"type": "result", "analysis": _row_to_response(row).model_dump()}
+            )
+
+        if not to_compute:
+            return
+
+        # 2. Compute only the uncached issues, reusing one codebase build,
+        #    streaming each result the moment it finishes.
+        yield _sse(
+            {"type": "status", "stage": "building", "message": "Building codebase…"}
+        )
+
         try:
             codebase = await run_in_threadpool(Codebase.from_repo, req.repo)
         except Exception as e:
             print(e)
-            raise HTTPException(
-                status_code=500, detail=f"Failed to initialize codebase: {e}"
+            yield _sse(
+                {
+                    "type": "error",
+                    "stage": "build",
+                    "message": f"Failed to initialize codebase: {e}",
+                }
             )
+            return
 
         try:
             repo_meta = await run_in_threadpool(get_repo_metadata, req.repo)
         except Exception as e:
             print(e)
-            raise HTTPException(status_code=404, detail=f"Failed to fetch repo: {e}")
+            yield _sse(
+                {
+                    "type": "error",
+                    "stage": "build",
+                    "message": f"Failed to fetch repo: {e}",
+                }
+            )
+            return
 
         for num in to_compute:
             try:
@@ -200,12 +230,10 @@ async def analyze_endpoint(req: BatchAnalyzeRequest):
                     codebase,
                     repo_meta,
                 )
-                computed.append(result)
                 await _save_cached(req.repo, num, pk, result)
+                yield _sse({"type": "result", "analysis": result.model_dump()})
             except Exception as e:
                 print(f"Failed to analyze issue #{num}: {e}")
-                continue
+                yield _sse({"type": "error", "number": num, "message": str(e)})
 
-    # 3. Return cached + freshly computed results.
-    cached = [_row_to_response(row) for row in cached_map.values()]
-    return cached + computed
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
