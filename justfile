@@ -6,4 +6,3 @@ run:
 
 format:
     ty check && ruff format
-    
