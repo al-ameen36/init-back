@@ -143,6 +143,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "graph-sitter" },
     { name = "httpx" },
+    { name = "mini-racer" },
     { name = "openai" },
     { name = "pygithub" },
     { name = "python-jose", extra = ["cryptography"] },
@@ -158,6 +159,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "graph-sitter", specifier = ">=0.56.14" },
     { name = "httpx", specifier = ">=0.28.0" },
+    { name = "mini-racer", specifier = "==0.12.4" },
     { name = "openai", specifier = ">=1.109.1" },
     { name = "pygithub", specifier = ">=2.8.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
@@ -1743,18 +1745,17 @@ wheels = [
 
 [[package]]
 name = "mini-racer"
-version = "0.14.1"
+version = "0.12.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/71/b0/5b200bdf093433f1933f783fbc908c23349a1a575c28c81aff75b609c7c1/mini_racer-0.14.1.tar.gz", hash = "sha256:0df25889b7c4e753520324a1687d85e41f9f64984efa81963339ed400f004d49", size = 41771, upload-time = "2026-02-01T05:53:27.408Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/2d/e051f58e17117b1b8b11a7d17622c1528fa9002c553943c6b677c1b412da/mini_racer-0.12.4.tar.gz", hash = "sha256:84c67553ce9f3736d4c617d8a3f882949d37a46cfb47fe11dab33dd6704e62a4", size = 447529, upload-time = "2024-06-20T14:44:39.992Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/2c/5857ee4e1714db8956aa878dc90255557458c124f93163704e7de948be03/mini_racer-0.14.1-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:a401ecdf5f73d4714b76dc3a4c9b5780059cf4c59a5b64cff7497dc6c219d5a0", size = 19988474, upload-time = "2026-02-01T05:53:03.998Z" },
-    { url = "https://files.pythonhosted.org/packages/09/bf/ecaad0c208b9d8bd8f2141f7fa5e520b66915945a2ed56c520524df75fcb/mini_racer-0.14.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:56cc6965a1665a50d8d613bc43aa83b4cec6b1f09acc69dc4c2845dacb201463", size = 18511166, upload-time = "2026-02-01T05:53:07.059Z" },
-    { url = "https://files.pythonhosted.org/packages/56/0c/5260cc29908777c91391dd8b61be9042a3d1c089e6bfc798cd403e44e87d/mini_racer-0.14.1-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:7f93d91973ddb2da4e899e06ecb426bfe7ea103cd1c92687ec9c38f206f375eb", size = 21929528, upload-time = "2026-02-01T05:53:10.22Z" },
-    { url = "https://files.pythonhosted.org/packages/c2/3c/c5bd479784826bbbc69f713aae2bcfd5ef353ba4e5e0e661666938474535/mini_racer-0.14.1-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:cdf3a088e1363f16a695288f882abf76b3705b8e1df21418208b87ed010037a4", size = 22178205, upload-time = "2026-02-01T05:53:13.407Z" },
-    { url = "https://files.pythonhosted.org/packages/eb/d4/89905a4238be7ea9afec2f10533668f68898c82914ddd91b2729be547eca/mini_racer-0.14.1-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:6788f31608c6c5d0faac4e6b4f36fc5498885f951e510717e8825eaebae6a4c5", size = 21837359, upload-time = "2026-02-01T05:53:16.762Z" },
-    { url = "https://files.pythonhosted.org/packages/11/1d/735c5d74239bd0d7d3b271d7f3c91f337c7f937d748dadc2c1c9579df475/mini_racer-0.14.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:ad4b5c15993caab571fac3d67e0d55157b358bd439e629e0fef26c45a12c8bab", size = 22178200, upload-time = "2026-02-01T05:53:19.414Z" },
-    { url = "https://files.pythonhosted.org/packages/78/60/e0708ea8533e928f10f985be35af4c02dd2b61f4a7501dc88e8c927d85e5/mini_racer-0.14.1-py3-none-win_amd64.whl", hash = "sha256:4abd58c62c9955988dbc0cbf5a798914334fe570d2b192f8890bec20135ab6d1", size = 15515732, upload-time = "2026-02-01T05:53:22.276Z" },
-    { url = "https://files.pythonhosted.org/packages/99/fd/7fb43e269c44e5d44ef02fbd164fc11833d8293b47ddcd48e4fb1649f4d2/mini_racer-0.14.1-py3-none-win_arm64.whl", hash = "sha256:440bef1269655b1da94b550612b50669de9881c3d88b805c139f7f1b5ec8ae7b", size = 14829128, upload-time = "2026-02-01T05:53:24.983Z" },
+    { url = "https://files.pythonhosted.org/packages/71/fe/1452b6c74cae9e8cd7b6a16d8b1ef08bba4dd0ed373a95f3b401c2e712ea/mini_racer-0.12.4-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:bce8a3cee946575a352f5e65335903bc148da42c036d0c738ac67e931600e455", size = 15701219, upload-time = "2024-06-20T14:44:21.96Z" },
+    { url = "https://files.pythonhosted.org/packages/99/ae/c22478eff26e6136341e6b40d34f8d285f910ca4d2e2a0ca4703ef87be79/mini_racer-0.12.4-py3-none-macosx_11_0_arm64.whl", hash = "sha256:56c832e6ac2db6a304d1e8e80030615297aafbc6940f64f3479af4ba16abccd5", size = 14566436, upload-time = "2024-06-20T14:44:24.496Z" },
+    { url = "https://files.pythonhosted.org/packages/44/89/f062aa116b14fcace91f0af86a37605f0ba7c07a01c8101b5ea104d489b1/mini_racer-0.12.4-py3-none-manylinux_2_31_aarch64.whl", hash = "sha256:b82c4bd2976e280ed0a72c9c2de01b13f18ccfbe6f4892cbc22aae04410fac3c", size = 14931664, upload-time = "2024-06-20T14:44:27.385Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/a1/09122c88a0dd0a2141b0ea068d70f5d31acd0015d6f3157b8efd3ff7e026/mini_racer-0.12.4-py3-none-manylinux_2_31_x86_64.whl", hash = "sha256:69a1c44d02a9069b881684cef15a2d747fe0743df29eadc881fda7002aae5fd2", size = 14955238, upload-time = "2024-06-20T14:44:30.217Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/3b/826e41f92631560e5c6ca2aa4ef9005bdccf9290c1e7ddebe05e0a3b8c7c/mini_racer-0.12.4-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:499dbc267dfe60e954bc1b6c3787f7b10fc41fe1975853c9a6ddb55eb83dc4d9", size = 15211136, upload-time = "2024-06-20T14:44:33.509Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/37/15b30316630d1f63b025f058dc92efa75931a37315c34ca07f80be2cc405/mini_racer-0.12.4-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:231f949f5787d18351939f1fe59e5a6fe134bccb5ecf8f836b9beab69d91c8d9", size = 15128684, upload-time = "2024-06-20T14:44:35.644Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/0e/a9943f90b4a8a6d3849b81a00a00d2db128d876365385af382a0e2caf191/mini_racer-0.12.4-py3-none-win_amd64.whl", hash = "sha256:9446e3bd6a4eb9fbedf1861326f7476080995a31c9b69308acef17e5b7ecaa1b", size = 13674040, upload-time = "2024-06-20T14:44:37.851Z" },
 ]
 
 [[package]]
