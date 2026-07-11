@@ -183,6 +183,98 @@ def get_repository_contents(
     return response.json()
 
 
+def get_profile_stats(username: str) -> dict:
+    """Live GitHub stats for the skills page, fetched on demand (no DB
+    persistence). Includes 28-day contribution activity, current streak, a
+    volume-weighted language proficiency proxy, plus live repo/PR/star/commit
+    counts. One GraphQL call covers most of it; repo count comes from REST.
+    """
+    query = """
+    query($login: String!) {
+      user(login: $login) {
+        contributionsCollection {
+          totalCommitContributions
+          contributionCalendar {
+            weeks { contributionDays { contributionCount date } }
+          }
+        }
+        pullRequests(states: MERGED, first: 1) {
+          totalCount
+        }
+        repositories(
+          first: 50
+          ownerAffiliations: [OWNER]
+          orderBy: { field: UPDATED_AT, direction: DESC }
+        ) {
+          nodes {
+            name
+            stargazerCount
+            languages(first: 10) { edges { size node { name } } }
+          }
+        }
+      }
+    }
+    """
+
+    response = requests.post(
+        "https://api.github.com/graphql",
+        json={"query": query, "variables": {"login": username}},
+        headers=HEADERS,
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    user = response.json()["data"]["user"]
+
+    # Flatten daily contribution counts (chronological).
+    days: list[dict] = []
+    for week in user["contributionsCollection"]["contributionCalendar"]["weeks"]:
+        for day in week["contributionDays"]:
+            days.append({"date": day["date"], "count": day["contributionCount"]})
+
+    activity = [d["count"] for d in days[-28:]]
+
+    # Current streak: consecutive days with contributions ending today.
+    streak = 0
+    for day in reversed(days):
+        if day["count"] > 0:
+            streak += 1
+        else:
+            break
+
+    # Proficiency proxy: aggregate language bytes across owned repos, then
+    # normalize to a 0-100 share of total code volume.
+    agg = Counter()
+    total_stars = 0
+    for repo in user["repositories"]["nodes"]:
+        total_stars += repo.get("stargazerCount", 0)
+        for edge in repo.get("languages", {}).get("edges", []):
+            agg[edge["node"]["name"]] += edge["size"]
+
+    total = sum(agg.values()) or 1
+    languages = [
+        {
+            "name": name,
+            "bytes": size,
+            "value": round(size / total * 100),
+        }
+        for name, size in agg.most_common(8)
+    ]
+
+    # Live public repo count (includes forks, matching the account total).
+    repo_count = get_user(username).get("public_repos", 0)
+
+    return {
+        "activity": activity,
+        "streak": streak,
+        "languages": languages,
+        "repos": repo_count,
+        "merged_prs": user["pullRequests"]["totalCount"],
+        "total_stars": total_stars,
+        "total_commits": user["contributionsCollection"]["totalCommitContributions"],
+    }
+
+
 def download_file(
     owner: str,
     repo: str,

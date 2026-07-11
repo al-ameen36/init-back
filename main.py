@@ -12,6 +12,7 @@ from routes import (
     repo_router,
     repo_meta_router,
     auth_router,
+    github_router,
 )
 
 logging.basicConfig(
@@ -70,6 +71,7 @@ app.include_router(issues_router)
 app.include_router(repo_router)
 app.include_router(repo_meta_router)
 app.include_router(auth_router)
+app.include_router(github_router)
 
 
 @app.get("/health")
