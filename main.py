@@ -1,4 +1,5 @@
 import logging
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
@@ -22,11 +23,13 @@ logging.basicConfig(
 
 logger = logging.getLogger("init")
 
+# Origins allowed to call the API. In production set ALLOWED_ORIGINS to a
+# comma-separated list including your Vercel URL, e.g.
+# "https://init.vercel.app,http://localhost:3000".
 ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
 ]
 
 

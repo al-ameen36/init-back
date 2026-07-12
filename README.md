@@ -86,8 +86,6 @@ OPENAI_API_KEY=sk-xxx
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o-mini
 
-HF_TOKEN=hf_xxx
-
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SECRET_KEY=<service-role-key>
 SUPABASE_JWKS_URL=https://<project>.supabase.co/auth/v1/keys
