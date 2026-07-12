@@ -95,6 +95,39 @@ SUPABASE_JWKS_URL=https://<project>.supabase.co/auth/v1/keys
 
 The GitHub token is required to avoid API rate limits when fetching repositories and issues.
 
+### Database setup (Supabase)
+
+Init persists data in three Supabase tables. Their schemas, indexes, and Row
+Level Security policies live in `sql/`:
+
+| File                   | Table         | Written by | Purpose                                  |
+| ---------------------- | ------------- | ---------- | ---------------------------------------- |
+| `sql/profiles.sql`     | `profiles`    | frontend   | developer profile, languages, tech stack |
+| `sql/repositories.sql` | `repositories`| frontend   | user-managed GitHub repositories         |
+| `sql/analyses.sql`     | `analysis`    | backend    | cached issue investigations              |
+
+Run all three in your Supabase database. They are idempotent
+(`create table if not exists` + policy drops), so re-running is safe.
+
+- **Supabase SQL Editor:** paste each file's contents and run it.
+- **Supabase CLI:**
+  ```bash
+  supabase db execute --file sql/profiles.sql
+  supabase db execute --file sql/repositories.sql
+  supabase db execute --file sql/analyses.sql
+  ```
+- **psql** against your project's connection string:
+  ```bash
+  psql "$SUPABASE_DB_URL" -f sql/profiles.sql
+  psql "$SUPABASE_DB_URL" -f sql/repositories.sql
+  psql "$SUPABASE_DB_URL" -f sql/analyses.sql
+  ```
+
+> RLS is enabled on every table. `profiles`/`repositories` are scoped so a user
+> can only read/write their own rows (the frontend authenticates with the
+> publishable key, so `auth.uid()` is enforced). `analysis` is written by the
+> backend using the **service-role** key, which bypasses RLS.
+
 ### Model (vLLM on AMD Developer Cloud)
 
 Init talks to an OpenAI-compatible endpoint. The model is served with vLLM on the
@@ -139,6 +172,50 @@ Interactive documentation:
 ```
 http://localhost:8000/docs
 ```
+
+---
+
+## Running with Docker
+
+`docker-compose.yml` defines a single `backend` service. The image is built
+multi-stage: it copies the Node.js runtime from `node:20-bookworm-slim` onto the
+`uv` Python base and pre-installs `@specfy/stack-analyser` at `/opt/analyser`, so
+tech detection works with no extra setup or sidecar.
+
+### Build & run
+
+```bash
+# from the repo root
+docker compose up --build        # foreground logs
+docker compose up -d --build     # detached
+```
+
+The API is then available at `http://localhost:8000` (the service publishes port
+`8000`).
+
+### Walkthrough
+
+1. **Configure env.** Copy and fill in the environment first — the container
+   reads it via `env_file:`:
+   ```bash
+   cp .env.example .env
+   ```
+   Set `GITHUB_TOKEN`, the `SUPABASE_*` vars (pointing at your Supabase project,
+   whose tables you created in *Database setup*), and the `OPENAI_*` vars pointing
+   at your AMD Developer Cloud vLLM endpoint (`OPENAI_BASE_URL=http://<host>:30000/v1`,
+   `OPENAI_MODEL=google/gemma-4-31B-it`).
+2. **Build the image.** `docker compose up --build` compiles the Python deps with
+   `uv sync` and installs the Node analyser once. Subsequent builds are cached.
+3. **Verify.** Open `http://localhost:8000/docs` or hit `http://localhost:8000/health`.
+
+### Notes
+
+- No `STACK_ANALYSER_URL` is needed — the analyser is bundled in the image
+  (`tools/analyse.mjs` + `/opt/analyser`).
+- There is **no database container** in this compose file. `SUPABASE_URL` points
+  at your external Supabase project; run the `sql/*.sql` files there.
+- `docker compose down` stops the service. This file defines no named volumes,
+  so there is nothing extra to clean up.
 
 ---
 
