@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import subprocess
 from typing import Any, cast
 
 from fastapi.concurrency import run_in_threadpool
@@ -32,6 +34,7 @@ class ScoredFile(BaseModel):
     file: str
     confidence_score: int
     reasoning: str
+    github_url: str | None = None
 
 
 class InvestigationGuide(BaseModel):
@@ -54,9 +57,52 @@ class AnalyzeResponse(BaseModel):
     related: list[str]
     scored_files: list[ScoredFile]
     guide: InvestigationGuide
+    commit_sha: str | None = None
 
 
-def analyze_one(repo, issue_number, developer_profile, codebase, repo_meta):
+def _head_sha(repo_path: str) -> str | None:
+    """Return the commit SHA the codebase was checked out at."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if out.returncode == 0:
+            return out.stdout.strip() or None
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _build_path_index(paths: set[str]) -> dict[str, str]:
+    """Index repo paths for fuzzy lookup so slightly-off paths emitted by the
+    LLM (wrong case, singular/plural) still resolve to a real file."""
+    index: dict[str, str] = {}
+    for p in paths:
+        index[p.lower()] = p
+    return index
+
+
+def _resolve_path(index: dict[str, str], path: str) -> str | None:
+    """Return the real repo path for ``path`` or ``None`` if it can't be
+    matched. Tries exact, case-insensitive, then singular/plural variants on
+    the filename stem (so ``parser.js`` resolves to ``parsers.js``)."""
+    if not path:
+        return None
+    key = path.lower()
+    if key in index:
+        return index[key]
+    stem, ext = os.path.splitext(key)
+    if stem + "s" + ext in index:
+        return index[stem + "s" + ext]
+    if stem.endswith("s") and stem[:-1] + ext in index:
+        return index[stem[:-1] + ext]
+    return None
+
+
+def analyze_one(repo, issue_number, developer_profile, codebase, repo_meta, commit_sha):
     selected_issue = get_issue_by_number(repo, issue_number)
     issue_text = format_issue(selected_issue)
 
@@ -71,14 +117,67 @@ def analyze_one(repo, issue_number, developer_profile, codebase, repo_meta):
         scored_files = score_files(issue_text, file_matches)
         scored_files.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
 
+    # Only keep files that actually exist in the analyzed tree — graph_sitter
+    # or the LLM can surface paths that don't exist on GitHub (wrong case,
+    # singular/plural, or a file moved since this commit), which would 404.
+    # `file.filepath` is a string (matching the keys produced by search.py);
+    # `file.file` is a File object, so only use `filepath` here.
+    existing: set[str] = set()
+    if hasattr(codebase, "files"):
+        for f in codebase.files:
+            fp = getattr(f, "filepath", None)
+            if isinstance(fp, str):
+                existing.add(fp)
+    path_index = _build_path_index(existing)
+
+    resolved_scored: list[tuple[str, dict]] = []
+    for sf in scored_files:
+        real = _resolve_path(path_index, sf["file"])
+        if real is None:
+            continue
+        # Several slightly-off names can resolve to the same real file; keep
+        # only the highest-scoring entry per resolved path.
+        dup = next((item for item in resolved_scored if item[0] == real), None)
+        if dup is None:
+            resolved_scored.append((real, sf))
+        elif sf.get("confidence_score", 0) > dup[1].get("confidence_score", 0):
+            resolved_scored.remove(dup)
+            resolved_scored.append((real, sf))
+    scored_files = [sf for _, sf in resolved_scored]
+
     guide_data = generate_investigation_guide(issue_text, scored_files)
+
+    # Build clickable GitHub URLs pinned to the analyzed commit so they never
+    # 404 against a later ref (e.g. a file moved on the default branch).
+    def file_url(path: str) -> str | None:
+        if not commit_sha:
+            return None
+        return f"https://github.com/{repo}/blob/{commit_sha}/{path}"
+
+    scored_files_out = [
+        ScoredFile(
+            file=real,
+            confidence_score=sf["confidence_score"],
+            reasoning=sf["reasoning"],
+            github_url=file_url(real),
+        )
+        for real, sf in resolved_scored
+    ]
+
+    # Filter the LLM's free-text relevant_files to those that resolve in the
+    # codebase, so the frontend doesn't link to nonexistent paths.
+    relevant_files = [
+        rf
+        for raw in guide_data.get("relevant_files", [])
+        if (rf := _resolve_path(path_index, raw)) is not None
+    ]
 
     guide = InvestigationGuide(
         difficulty=guide_data.get("difficulty", "Medium"),
         comments=selected_issue.get("comments", 0),
         opened=format_relative_time(selected_issue["created_at"]),
         summary=guide_data.get("summary", ""),
-        relevant_files=guide_data.get("relevant_files", []),
+        relevant_files=relevant_files,
         investigation_path=guide_data.get("investigation_path", []),
         required_skills=guide_data.get("required_skills", []),
     )
@@ -100,8 +199,9 @@ def analyze_one(repo, issue_number, developer_profile, codebase, repo_meta):
         matchScore=match_score,
         matchReasons=match_reasons,
         related=[],
-        scored_files=[ScoredFile(**sf) for sf in scored_files],
+        scored_files=scored_files_out,
         guide=guide,
+        commit_sha=commit_sha,
     )
 
 
@@ -209,6 +309,14 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
             )
             return
 
+        # Pin every generated GitHub link to the exact commit we analyzed,
+        # so links never 404 against a later ref.
+        commit_sha = (
+            _head_sha(getattr(codebase, "repo_path", ""))
+            if getattr(codebase, "repo_path", "")
+            else None
+        )
+
         try:
             repo_meta = await run_in_threadpool(get_repo_metadata, req.repo)
         except Exception as e:
@@ -231,6 +339,7 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
                     req.developer_profile,
                     codebase,
                     repo_meta,
+                    commit_sha,
                 )
                 await _save_cached(req.repo, num, pk, result)
                 yield _sse({"type": "result", "analysis": result.model_dump()})

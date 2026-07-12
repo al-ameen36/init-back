@@ -54,7 +54,8 @@ Developer Profile          Repository + Issues
 - Python 3.12
 - FastAPI
 - Graph Sitter
-- OpenAI-compatible LLMs
+- vLLM-served LLMs (e.g. `google/gemma-4-31B-it`)
+- `@specfy/stack-analyser` (tech detection for the skills dashboard)
 - PyGithub
 - Supabase
 - SSE (Server-Sent Events)
@@ -82,9 +83,10 @@ Required environment variables:
 ```dotenv
 GITHUB_TOKEN=ghp_xxx
 
+# Any non-empty value works when pointing at a local vLLM server.
 OPENAI_API_KEY=sk-xxx
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_BASE_URL=http://localhost:30000/v1
+OPENAI_MODEL=google/gemma-4-31B-it
 
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SECRET_KEY=<service-role-key>
@@ -92,6 +94,29 @@ SUPABASE_JWKS_URL=https://<project>.supabase.co/auth/v1/keys
 ```
 
 The GitHub token is required to avoid API rate limits when fetching repositories and issues.
+
+### Model (vLLM on AMD Developer Cloud)
+
+Init talks to an OpenAI-compatible endpoint. The model is served with vLLM on the
+**AMD Developer Cloud** (using AMD GPUs, hence `HIP_VISIBLE_DEVICES`):
+
+```bash
+HIP_VISIBLE_DEVICES=0 vllm serve google/gemma-4-31B-it \
+    --gpu-memory-utilization 0.8 \
+    --dtype bfloat16 \
+    --tensor-parallel-size 1 \
+    --host 0.0.0.0 \
+    --port 30000 \
+    --max-num-seqs 128 \
+    --max-num-batched-tokens 8192 \
+    --max-model-len 8192 \
+    --distributed-executor-backend mp
+```
+
+Point `OPENAI_BASE_URL` at the AMD Developer Cloud endpoint that exposes vLLM on
+port `30000` (e.g. `http://<amd-cloud-host>:30000/v1`) and set `OPENAI_MODEL` to the
+served model name (`google/gemma-4-31B-it`). Any OpenAI-compatible endpoint works by
+changing those two variables.
 
 ---
 
@@ -276,3 +301,9 @@ Understanding an unfamiliar codebase is often the hardest part of contributing t
 Init reduces the time spent figuring out **where to start** by generating an investigation plan before a developer writes a single line of code.
 
 Instead of searching through dozens of files, developers can focus on implementing the solution.
+
+---
+
+## Related Projects
+
+- **[init-front](https://github.com/al-ameen36/init-front)** — the React/TanStack Start web application that powers the Init experience (onboarding, issue matching, skills dashboard, and investigation guides). This backend serves its API.
