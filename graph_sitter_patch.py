@@ -116,22 +116,62 @@ def _safe_from_export_statement(
 ) -> list[TSImport]:
     """Constructs import objects defined from an export statement."""
     export_statement_node = find_first_ancestor(source_node, ["export_statement"])
+    if export_statement_node is None:
+        return []
     imports = []
-    if export_clause := next((child for child in export_statement_node.named_children if child.type == "export_clause"), None):
+    if export_clause := next(
+        (
+            child
+            for child in export_statement_node.named_children
+            if child.type == "export_clause"
+        ),
+        None,
+    ):
         # === [ Named export import ] ===
         # e.g. export { default as subtract } from './subtract';
         for export_specifier in export_clause.named_children:
             name = export_specifier.child_by_field_name("name")
             alias = export_specifier.child_by_field_name("alias") or name
-            import_type = ImportType.DEFAULT_EXPORT if (name and name.text.decode("utf-8") == "default") else ImportType.NAMED_EXPORT
-            imp = cls(ts_node=export_statement_node, file_node_id=file_node_id, ctx=ctx, parent=parent, module_node=source_node, name_node=name, alias_node=alias, import_type=import_type)
+            name_text = (
+                name.text.decode("utf-8")
+                if name is not None and name.text is not None
+                else None
+            )
+            if name_text == "default":
+                import_type = ImportType.DEFAULT_EXPORT
+            else:
+                import_type = ImportType.NAMED_EXPORT
+            imp = cls(
+                ts_node=export_statement_node,
+                file_node_id=file_node_id,
+                ctx=ctx,
+                parent=parent,
+                module_node=source_node,
+                name_node=name,
+                alias_node=alias,
+                import_type=import_type,
+            )
             imports.append(imp)
     else:
         # ==== [ Wildcard export import ] ====
         # Note: re-exporting using wildcard syntax does NOT include the default export!
-        if namespace_export := next((child for child in export_statement_node.named_children if child.type == "namespace_export"), None):
+        if namespace_export := next(
+            (
+                child
+                for child in export_statement_node.named_children
+                if child.type == "namespace_export"
+            ),
+            None,
+        ):
             # Aliased wildcard export (e.g. export * as myNamespace from './m';)
-            alias = next((child for child in namespace_export.named_children if child.type == "identifier"), namespace_export)
+            alias = next(
+                (
+                    child
+                    for child in namespace_export.named_children
+                    if child.type == "identifier"
+                ),
+                namespace_export,
+            )
             imp = cls(
                 ts_node=export_statement_node,
                 file_node_id=file_node_id,
@@ -145,12 +185,21 @@ def _safe_from_export_statement(
             imports.append(imp)
         else:
             # No alias wildcard export (e.g. export * from './m';)
-            imp = cls(ts_node=export_statement_node, file_node_id=file_node_id, ctx=ctx, parent=parent, module_node=source_node, name_node=None, alias_node=None, import_type=ImportType.WILDCARD)
+            imp = cls(
+                ts_node=export_statement_node,
+                file_node_id=file_node_id,
+                ctx=ctx,
+                parent=parent,
+                module_node=source_node,
+                name_node=None,
+                alias_node=None,
+                import_type=ImportType.WILDCARD,
+            )
             imports.append(imp)
     return imports
 
 
-TSImport.from_export_statement = _safe_from_export_statement
+TSImport.from_export_statement = _safe_from_export_statement  # ty: ignore
 
 
 # ===== [ Fix 3: tolerate unparseable files ] =====
@@ -161,7 +210,9 @@ _original_from_content = SourceFile.from_content
 @classmethod
 def _safe_from_content(cls, filepath, content, ctx, *args, **kwargs):
     try:
-        return _original_from_content.__func__(cls, filepath, content, ctx, *args, **kwargs)
+        return _original_from_content.__func__(
+            cls, filepath, content, ctx, *args, **kwargs
+        )
     except Exception as e:  # noqa: BLE001
         logger.warning(
             "Skipping file %s (graph_sitter parse failed: %s: %s)",
@@ -172,7 +223,7 @@ def _safe_from_content(cls, filepath, content, ctx, *args, **kwargs):
         return None
 
 
-SourceFile.from_content = _safe_from_content
+SourceFile.from_content = _safe_from_content  # ty: ignore
 
 
 # ===== [ Fix 3b: tolerate body-less symbols (e.g. ambient / malformed namespaces) ] =====
@@ -189,7 +240,9 @@ SourceFile.from_content = _safe_from_content
 _original_symbol_init = Symbol.__init__
 
 
-def _safe_symbol_init(self, ts_node, file_id, ctx, parent, name_node=None, name_node_type=DefinedName):
+def _safe_symbol_init(
+    self, ts_node, file_id, ctx, parent, name_node=None, name_node_type=DefinedName
+):
     super(Symbol, self).__init__(ts_node, file_id, ctx, parent)
     name_node = self._get_name_node(ts_node) if name_node is None else name_node
     self._name_node = self._parse_expression(name_node, default=name_node_type)
@@ -202,7 +255,7 @@ def _safe_symbol_init(self, ts_node, file_id, ctx, parent, name_node=None, name_
         self.code_block.parse()
 
 
-Symbol.__init__ = _safe_symbol_init
+Symbol.__init__ = _safe_symbol_init  # ty: ignore
 
 
 # ===== [ Fix 3c: body-less namespaces have no code block to compute deps on ] =====

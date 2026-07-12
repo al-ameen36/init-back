@@ -10,8 +10,15 @@ def perform_search(codebase: Codebase, queries: list[str]) -> dict[str, list[str
     file_matches = {}
 
     for query in queries:
-        # First try an exact symbol lookup
-        symbol = codebase.get_symbol(query, optional=True)
+        # First try an exact symbol lookup. `get_symbol(optional=True)` still
+        # raises when a name is ambiguous (matches multiple symbols), so guard
+        # it and fall back to a content/regex search instead of aborting.
+        symbol = None
+        try:
+            symbol = codebase.get_symbol(query, optional=True)
+        except Exception:
+            symbol = None
+
         if symbol is not None:
             snippet = f"Symbol: {symbol.name}\nContext:\n{symbol.source[:200]}"
             file_matches.setdefault(symbol.filepath, []).append(snippet)
@@ -19,7 +26,10 @@ def perform_search(codebase: Codebase, queries: list[str]) -> dict[str, list[str
 
         # Fall back to regex search across all files
         for file in codebase.files:
-            results = file.search(query)
+            try:
+                results = file.search(query)
+            except Exception:
+                continue
             if results:
                 for result in results:
                     snippet = f"Line {result.start_point[0] + 1}:\n{result.source.strip()[:120]}"
