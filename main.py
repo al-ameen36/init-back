@@ -3,6 +3,8 @@ import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
+import graph_sitter_patch  # noqa: F401  side-effect: make graph_sitter tolerate unparseable files
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
