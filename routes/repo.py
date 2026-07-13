@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth import get_current_user
 from features.github import get_repo
 
-router = APIRouter(prefix="/repo")
+router = APIRouter(prefix="/repo", dependencies=[Depends(get_current_user)])
 
 
 @router.get("/{owner}/{name}")

@@ -221,17 +221,24 @@ The API is then available at `http://localhost:8000` (the service publishes port
 
 ## Authentication
 
-Authentication is handled by **Supabase GitHub OAuth**.
+Authentication is handled by **Supabase GitHub OAuth**. The frontend signs the
+user in and stores the session; the backend never sees the OAuth flow.
 
-The frontend authenticates users, while the backend verifies the JWT using Supabase's JWKS endpoint before exposing authenticated resources.
-
-Currently, only:
+Every API route except `/health` and the auth probe `GET /auth/me` requires a
+valid Supabase access token. The frontend attaches it on every request as:
 
 ```
-GET /auth/me
+Authorization: Bearer <access_token>
 ```
 
-requires authentication.
+The backend verifies the JWT against Supabase's JWKS endpoint
+(`SUPABASE_JWKS_URL`), caches the keys in memory, and rejects requests with
+`401` when the token is missing or invalid. The verified user (id, email,
+GitHub username) is available via the `get_current_user` dependency.
+
+```
+GET /auth/me   # returns the authenticated user (used by the frontend to check auth)
+```
 
 ---
 

@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth import get_current_user
 from sse_starlette.sse import EventSourceResponse
 
 from features.developer import analyze_developer
@@ -25,6 +26,7 @@ logger = logging.getLogger("init")
 router = APIRouter(
     prefix="/developer",
     tags=["developer"],
+    dependencies=[Depends(get_current_user)],
 )
 
 

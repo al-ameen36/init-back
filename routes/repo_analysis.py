@@ -5,7 +5,7 @@ import subprocess
 from typing import Any, cast
 
 from fastapi.concurrency import run_in_threadpool
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from graph_sitter import Codebase
 from pydantic import BaseModel
@@ -20,7 +20,9 @@ from features.gh_issues import (
     get_repo_metadata,
 )
 
-router = APIRouter(prefix="/analyze")
+from app.auth import get_current_user
+
+router = APIRouter(prefix="/analyze", dependencies=[Depends(get_current_user)])
 
 
 class BatchAnalyzeRequest(BaseModel):

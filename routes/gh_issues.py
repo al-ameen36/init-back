@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from features.gh_issues import get_issues, format_relative_time
 
-router = APIRouter(prefix="/issues")
+from app.auth import get_current_user
+
+router = APIRouter(prefix="/issues", dependencies=[Depends(get_current_user)])
 
 
 class IssueSummary(BaseModel):

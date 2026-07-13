@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.auth import get_current_user
 from features.github import get_profile_stats
 
 logger = logging.getLogger("init")
 
-router = APIRouter(prefix="/github", tags=["github"])
+router = APIRouter(
+    prefix="/github",
+    tags=["github"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 @router.get("/stats")
