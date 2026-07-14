@@ -36,7 +36,6 @@ from graph_store.models import (
     NodeKind,
     RelationshipType,
     node_uid,
-    relationship_uid,
 )
 
 logger = logging.getLogger("graph_store.memgraph")
@@ -163,6 +162,19 @@ class MemgraphGraphStore(GraphStore):
         )
         return self.upsert_node(node)
 
+    def get_repository(self, repository_id: str) -> GraphNode | None:
+        records = self._run_read(
+            f"MATCH (n:{BASE_LABEL} {{repositoryId: $repo, kind: 'Repository'}}) "
+            "RETURN n LIMIT 1",
+            {"repo": repository_id},
+        )
+        if not records:
+            return None
+        return _node_to_model(records[0]["n"])
+
+    def repository_exists(self, repository_id: str) -> bool:
+        return self.get_repository(repository_id) is not None
+
     def clear_repository(self, repository_id: str) -> None:
         """Remove everything except the Repository node, so re-index is seamless."""
         self._run_write(
@@ -249,7 +261,7 @@ class MemgraphGraphStore(GraphStore):
     def delete_relationship(self, repository_id: str, relationship_id: str) -> None:
         self._run_write(
             "MATCH (s)-[r]->(t) WHERE r.uid = $ruid DELETE r",
-            {"ruid": relationship_uid(repository_id, relationship_id)},
+            {"ruid": relationship_id},
         )
 
     def delete_nodes_in_file(self, repository_id: str, file_path: str) -> None:
@@ -391,7 +403,7 @@ class MemgraphGraphStore(GraphStore):
     ) -> str:
         if rel_types:
             types = "|".join(t.value for t in rel_types)
-            rel = f"[:{types}]"
+            rel = f":{types}"
         else:
             rel = ""
         if direction == Direction.OUT:

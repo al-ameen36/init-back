@@ -1,18 +1,17 @@
 import hashlib
 import json
 import os
-import subprocess
 from typing import Any, cast
 
 from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from graph_sitter import Codebase
 from pydantic import BaseModel
+import requests
 from supabase_client import get_supabase
 
 from features.llm import generate_investigation_guide, score_files, analyze_issue
-from features.search import perform_search
+from features.code_graph import ensure_graph, graph_search, list_file_paths
 from features.gh_issues import (
     format_relative_time,
     format_issue,
@@ -62,17 +61,14 @@ class AnalyzeResponse(BaseModel):
     commit_sha: str | None = None
 
 
-def _head_sha(repo_path: str) -> str | None:
-    """Return the commit SHA the codebase was checked out at."""
+def _default_branch_sha(repo: str) -> str | None:
+    """Latest commit SHA of the repo's default branch (for stable GitHub links)."""
     try:
-        out = subprocess.run(
-            ["git", "-C", repo_path, "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=30,
+        resp = requests.get(
+            f"https://api.github.com/repos/{repo}/commits?per_page=1", timeout=15
         )
-        if out.returncode == 0:
-            return out.stdout.strip() or None
+        if resp.status_code == 200 and resp.json():
+            return resp.json()[0].get("sha")
     except Exception:  # noqa: BLE001
         pass
     return None
@@ -104,32 +100,25 @@ def _resolve_path(index: dict[str, str], path: str) -> str | None:
     return None
 
 
-def analyze_one(repo, issue_number, developer_profile, codebase, repo_meta, commit_sha):
+def analyze_one(repo, issue_number, developer_profile, store, repo_meta, commit_sha):
     selected_issue = get_issue_by_number(repo, issue_number)
     issue_text = format_issue(selected_issue)
 
     # Search queries from LLM
     queries = analyze_issue(issue_text)
 
-    # Reuse the already-built codebase for every issue in the batch
-    file_matches = perform_search(codebase, queries)
+    # Serve search from the persistent graph store (no live parser needed).
+    file_matches = graph_search(store, repo, queries)
 
     scored_files = []
     if file_matches:
         scored_files = score_files(issue_text, file_matches)
         scored_files.sort(key=lambda x: x.get("confidence_score", 0), reverse=True)
 
-    # Only keep files that actually exist in the analyzed tree — graph_sitter
-    # or the LLM can surface paths that don't exist on GitHub (wrong case,
+    # Only keep files that actually exist in the analyzed tree — the graph or
+    # the LLM can surface paths that don't exist on GitHub (wrong case,
     # singular/plural, or a file moved since this commit), which would 404.
-    # `file.filepath` is a string (matching the keys produced by search.py);
-    # `file.file` is a File object, so only use `filepath` here.
-    existing: set[str] = set()
-    if hasattr(codebase, "files"):
-        for f in codebase.files:
-            fp = getattr(f, "filepath", None)
-            if isinstance(fp, str):
-                existing.add(fp)
+    existing: set[str] = list_file_paths(store, repo)
     path_index = _build_path_index(existing)
 
     resolved_scored: list[tuple[str, dict]] = []
@@ -299,25 +288,21 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
         )
 
         try:
-            codebase = await run_in_threadpool(Codebase.from_repo, req.repo)
+            store = await run_in_threadpool(ensure_graph, req.repo)
         except Exception as e:
             print(e)
             yield _sse(
                 {
                     "type": "error",
                     "stage": "build",
-                    "message": f"Failed to initialize codebase: {e}",
+                    "message": f"Failed to build code graph: {e}",
                 }
             )
             return
 
         # Pin every generated GitHub link to the exact commit we analyzed,
         # so links never 404 against a later ref.
-        commit_sha = (
-            _head_sha(getattr(codebase, "repo_path", ""))
-            if getattr(codebase, "repo_path", "")
-            else None
-        )
+        commit_sha = await run_in_threadpool(_default_branch_sha, req.repo)
 
         try:
             repo_meta = await run_in_threadpool(get_repo_metadata, req.repo)
@@ -339,7 +324,7 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
                     req.repo,
                     num,
                     req.developer_profile,
-                    codebase,
+                    store,
                     repo_meta,
                     commit_sha,
                 )

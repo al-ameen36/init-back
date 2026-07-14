@@ -59,6 +59,14 @@ class GraphStore(ABC):
         """Upsert the Repository node. Idempotent."""
 
     @abstractmethod
+    def get_repository(self, repository_id: str) -> GraphNode | None:
+        """Return the Repository node, or ``None`` if no graph exists yet."""
+
+    @abstractmethod
+    def repository_exists(self, repository_id: str) -> bool:
+        """Convenience predicate: ``get_repository(repository_id) is not None``."""
+
+    @abstractmethod
     def clear_repository(self, repository_id: str) -> None:
         """Remove all nodes/relationships for a repo *except* its Repository node.
 

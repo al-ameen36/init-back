@@ -64,8 +64,8 @@ def node_uid(repository_id: str, node_id: str) -> str:
     return f"{repository_id}{UID_SEP}{node_id}"
 
 
-def relationship_uid(repository_id: str, rel_id: str) -> str:
-    return f"{repository_id}{UID_SEP}{rel_id}"
+def relationship_uid(source_id: str, rel_type: str, target_id: str) -> str:
+    return f"{source_id}{UID_SEP}{rel_type}{UID_SEP}{target_id}"
 
 
 @dataclass
@@ -124,7 +124,7 @@ class GraphRelationship:
 
     @property
     def uid(self) -> str:
-        return relationship_uid(self.repository_id, self.id)
+        return relationship_uid(self.source_id, self.type.value, self.target_id)
 
     @property
     def source_uid(self) -> str:

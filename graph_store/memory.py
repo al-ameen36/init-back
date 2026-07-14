@@ -18,7 +18,6 @@ from graph_store.models import (
     NodeKind,
     RelationshipType,
     node_uid,
-    relationship_uid,
 )
 
 
@@ -70,6 +69,14 @@ class InMemoryGraphStore(GraphStore):
         )
         self._nodes[node.uid] = node
         return node
+
+    def get_repository(self, repository_id: str) -> GraphNode | None:
+        repo_uid = node_uid(repository_id, repository_id)
+        node = self._nodes.get(repo_uid)
+        return node if node is not None and node.kind == NodeKind.REPOSITORY else None
+
+    def repository_exists(self, repository_id: str) -> bool:
+        return self.get_repository(repository_id) is not None
 
     def clear_repository(self, repository_id: str) -> None:
         for uid in [
@@ -126,7 +133,7 @@ class InMemoryGraphStore(GraphStore):
             self._adj[other_uid] = kept
 
     def delete_relationship(self, repository_id: str, relationship_id: str) -> None:
-        ruid = relationship_uid(repository_id, relationship_id)
+        ruid = relationship_id
         rel = self._rels.pop(ruid, None)
         if rel is not None:
             self._adj[rel.source_uid] = [
