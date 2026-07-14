@@ -31,6 +31,11 @@ Run `just format` (or at least `ty check`) after edits.
   `MemgraphGraphStore` is the backend (Bolt/`neo4j` driver); `InMemoryGraphStore`
   is the test double. Get an instance via `graph_store.get_graph_store()`
   (reads `MEMGRAPH_URI`). Memgraph runs as its own `docker-compose` service.
+- `features/code_graph.py` — bridges the parser (`graph_sitter.Codebase`) and the
+  store. `ensure_graph(repo)` is the cache gate: it parses *once* and persists to
+  Memgraph; later calls return the existing graph (no re-parse). `graph_search`
+  + `list_file_paths` let `routes/repo_analysis.py` run entirely off the store,
+  with no live `Codebase` object.
 
 ## SSE contracts
 
