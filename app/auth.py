@@ -14,6 +14,8 @@ import httpx
 from fastapi import HTTPException, Request
 from jose import jwt
 
+ACCESS_TOKEN_COOKIE = "sb-access-token"
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL") or (
     f"{SUPABASE_URL}/auth/v1/keys" if SUPABASE_URL else None
@@ -54,20 +56,29 @@ async def verify_supabase_token(token: str) -> Optional[dict]:
         return None
 
 
-async def get_current_user(request: Request) -> dict:
-    """FastAPI dependency: require a valid Supabase Bearer token.
-
-    Returns the authenticated user, or raises ``401`` when the token is missing
-    or invalid.
-    """
+def _extract_token(request: Request) -> Optional[str]:
+    """Pull the Supabase access token from the ``Authorization`` header or the
+    httpOnly session cookie (used by browser ``EventSource`` / fetch with
+    credentials, which cannot set custom headers)."""
     authorization = request.headers.get("Authorization", "")
-    if not authorization.startswith("Bearer "):
+    if authorization.startswith("Bearer "):
+        return authorization[len("Bearer ") :]
+    return request.cookies.get(ACCESS_TOKEN_COOKIE)
+
+
+async def get_current_user(request: Request) -> dict:
+    """FastAPI dependency: require a valid Supabase token.
+
+    Reads the token from the ``Authorization`` header or the
+    ``sb-access-token`` cookie. Raises ``401`` when missing or invalid.
+    """
+    token = _extract_token(request)
+    if not token:
         raise HTTPException(
             status_code=401,
-            detail="Missing or invalid Authorization header",
+            detail="Missing or invalid token",
         )
 
-    token = authorization[len("Bearer ") :]
     payload = await verify_supabase_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
