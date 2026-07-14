@@ -9,6 +9,7 @@ dependencies = [
     "graph-sitter>=0.56.14",
     "mini-racer==0.12.4",
     "httpx>=0.28.0",
+    "neo4j>=6.0",
     "openai>=1.109.1",
     "pygithub>=2.8.1",
     "python-jose[cryptography]>=3.3.0",

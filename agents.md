@@ -26,6 +26,11 @@ Run `just format` (or at least `ty check`) after edits.
 - `features/` — business logic: `developer`, `events` (per-job `asyncio.Queue`),
   `gh_issues`, `github`, `technologies`, `llm`, `search`.
 - `models/` — Pydantic request/response models.
+- `graph_store/` — parser-agnostic code-graph persistence layer. Apps depend on
+  the `GraphStore` **interface** (`graph_store/base.py`), not on Memgraph.
+  `MemgraphGraphStore` is the backend (Bolt/`neo4j` driver); `InMemoryGraphStore`
+  is the test double. Get an instance via `graph_store.get_graph_store()`
+  (reads `MEMGRAPH_URI`). Memgraph runs as its own `docker-compose` service.
 
 ## SSE contracts
 
