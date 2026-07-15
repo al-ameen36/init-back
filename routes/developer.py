@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth import get_current_user
+from features.auth import get_current_user
 from sse_starlette.sse import EventSourceResponse
 
 from features.developer import analyze_developer

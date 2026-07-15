@@ -6,6 +6,7 @@ project's JWKS endpoint. Protect any route by adding
 ``dependencies=[Depends(get_current_user)]`` to its ``APIRouter``.
 """
 
+import logging
 import os
 import time
 from typing import Optional
@@ -13,6 +14,8 @@ from typing import Optional
 import httpx
 from fastapi import HTTPException, Request
 from jose import jwt
+
+logger = logging.getLogger(__name__)
 
 ACCESS_TOKEN_COOKIE = "sb-access-token"
 
@@ -52,7 +55,7 @@ async def verify_supabase_token(token: str) -> Optional[dict]:
             options={"verify_aud": False},
         )
     except Exception as e:  # noqa: BLE001 - any verification failure => unauthenticated
-        print(f"JWT verification failed: {type(e).__name__}: {e}")
+        logger.warning("JWT verification failed: %s: %s", type(e).__name__, e)
         return None
 
 

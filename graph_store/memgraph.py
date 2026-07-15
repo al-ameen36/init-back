@@ -90,7 +90,11 @@ class MemgraphGraphStore(GraphStore):
     def connect(self) -> None:
         if self._driver is None:
             self._driver = GraphDatabase.driver(self._uri, auth=self._auth)
-        self._driver.verify_connectivity()
+        try:
+            self._driver.verify_connectivity()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Memgraph connection failed at %s: %s", self._uri, exc)
+            raise
         self.initialize()
 
     def close(self) -> None:

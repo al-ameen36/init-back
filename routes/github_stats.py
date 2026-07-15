@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.auth import get_current_user
+from features.auth import get_current_user
 from features.github import get_profile_stats
 
 logger = logging.getLogger("init")

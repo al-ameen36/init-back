@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 from typing import Any, cast
 
@@ -19,7 +20,9 @@ from features.gh_issues import (
     get_repo_metadata,
 )
 
-from app.auth import get_current_user
+from features.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analyze", dependencies=[Depends(get_current_user)])
 
@@ -239,7 +242,7 @@ async def _save_cached(repo: str, num: int, pk: str, r: AnalyzeResponse) -> None
             .execute()
         )
     except Exception as e:
-        print("Failed to cache analysis:", e)
+        logger.warning("Failed to cache analysis: %s", e)
 
 
 def _sse(payload: dict[str, Any]) -> str:
@@ -267,7 +270,7 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
                 row = cast("dict[str, Any]", raw)
                 cached_map[int(row["issue_number"])] = row
         except Exception as e:
-            print("Analysis cache read failed:", e)
+            logger.warning("Analysis cache read failed: %s", e)
 
     to_compute = [n for n in req.issue_numbers if n not in cached_map]
 
@@ -290,7 +293,7 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
         try:
             store = await run_in_threadpool(ensure_graph, req.repo)
         except Exception as e:
-            print(e)
+            logger.error("Failed to build code graph: %s", e, exc_info=True)
             yield _sse(
                 {
                     "type": "error",
@@ -307,7 +310,7 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
         try:
             repo_meta = await run_in_threadpool(get_repo_metadata, req.repo)
         except Exception as e:
-            print(e)
+            logger.error("Failed to fetch repo: %s", e, exc_info=True)
             yield _sse(
                 {
                     "type": "error",
@@ -331,7 +334,7 @@ async def analyze_endpoint(req: BatchAnalyzeRequest) -> StreamingResponse:
                 await _save_cached(req.repo, num, pk, result)
                 yield _sse({"type": "result", "analysis": result.model_dump()})
             except Exception as e:
-                print(f"Failed to analyze issue #{num}: {e}")
+                logger.error("Failed to analyze issue %s: %s", num, e, exc_info=True)
                 yield _sse({"type": "error", "number": num, "message": str(e)})
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")

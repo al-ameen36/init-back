@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 
-from app.auth import ACCESS_TOKEN_COOKIE, get_current_user
+from features.auth import ACCESS_TOKEN_COOKIE, get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

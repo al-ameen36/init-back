@@ -1,8 +1,12 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from features.gh_issues import get_issues, format_relative_time
 
-from app.auth import get_current_user
+from features.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/issues", dependencies=[Depends(get_current_user)])
 
@@ -26,7 +30,7 @@ def list_issues_endpoint(repo: str, limit: int = 5):
     try:
         issues = get_issues(repo, limit=limit, state="open")
     except Exception as e:
-        print(e)
+        logger.error("Failed to fetch issues for repo %s: %s", repo, e, exc_info=True)
         raise HTTPException(
             status_code=404, detail=f"Failed to fetch issues for repo:{repo}"
         )
