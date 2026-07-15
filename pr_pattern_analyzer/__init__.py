@@ -7,20 +7,23 @@ from .models import (
     ContributorPlaybook,
     Evidence,
     PRFact,
+    PRStats,
     ChecklistItem,
     ExamplePR,
     Recommendation,
 )
-from .playbook import build_playbook
+from .playbook import build_playbook, compute_stats
 
 __all__ = [
     "build_playbook",
     "chat_json",
     "CommitMetadata",
+    "compute_stats",
     "ContributorPlaybook",
     "Evidence",
     "EvidenceCollector",
     "PRFact",
+    "PRStats",
     "ChecklistItem",
     "ExamplePR",
     "Recommendation",

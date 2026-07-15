@@ -132,6 +132,21 @@ class ExamplePR(BaseModel):
     summary: str
 
 
+class PRStats(BaseModel):
+    """Deterministic aggregate stats computed from PRFact list (no LLM)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    avg_time_to_merge_hours: float
+    avg_files_changed: float
+    avg_insertions: float
+    avg_deletions: float
+    median_review_rounds: int
+    merge_rate_with_tests: float  # fraction (0.0–1.0) of PRs with tests
+    merge_rate_with_linked_issue: float  # fraction (0.0–1.0) of PRs linking issues
+    merge_rate_conventional_title: float  # fraction using conventional commits
+
+
 class ContributorPlaybook(BaseModel):
     """Structured output of the synthesis step. Storable and renderable."""
 
@@ -143,3 +158,4 @@ class ContributorPlaybook(BaseModel):
     example_prs: list[ExamplePR]
     prs_analyzed: int
     repo: str
+    stats: PRStats
