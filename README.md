@@ -15,6 +15,7 @@ This service orchestrates GitHub, Graph Sitter, LLMs, and Supabase to deliver an
 - 🎯 Matches developers with issues suited to their experience
 - 🔍 Identifies the files and execution paths relevant to an issue
 - 📝 Generates investigation guides for solving issues
+- 🔬 Analyzes merged PR patterns to produce contributor playbooks
 - ⚡ Streams long-running analyses with Server-Sent Events (SSE)
 - 💾 Caches completed analyses in Supabase for fast subsequent requests
 
@@ -286,6 +287,21 @@ Returns the authenticated user.
 
 ---
 
+### PR Pattern Analysis
+
+| Method | Endpoint               |
+| ------ | ---------------------- |
+| POST   | `/pr-pattern/analyze`  |
+| POST   | `/pr-pattern/pr`       |
+
+Analyzes a repository's recent merged PRs and produces a **ContributorPlaybook**
+— a structured guide with recommendations, a pre-PR checklist, example PRs, and
+aggregate stats (merge time ranges, file counts, review rounds). Data is
+collected from git history (evidence) and the GitHub API (metadata), then
+synthesized by a single LLM call with structured JSON output.
+
+---
+
 ## Analysis Pipeline
 
 When analyzing a repository issue, Init performs the following steps:
@@ -353,12 +369,29 @@ Subsequent requests for the same developer and issue return instantly without re
 
 ```text
 main.py
-├── app/
-│   └── auth.py
-├── routes/
 ├── features/
-├── models/
-├── supabase_client.py
+│   ├── auth.py
+│   ├── code_graph.py
+│   ├── developer.py
+│   ├── developer_models.py
+│   ├── events.py
+│   ├── gh_issues.py
+│   ├── github.py
+│   ├── graph_sitter_patch.py
+│   ├── llm.py
+│   ├── search.py
+│   ├── supabase.py
+│   └── technologies.py
+├── pr_pattern_analyzer/
+│   ├── evidence.py
+│   ├── llm.py
+│   ├── models.py
+│   ├── playbook.py
+│   └── prompts/
+├── graph_store/
+├── routes/
+├── sql/
+├── tools/
 └── ...
 ```
 
@@ -369,10 +402,9 @@ main.py
 - ✅ GitHub profile analysis
 - ✅ Repository issue analysis
 - ✅ Investigation guides
+- ✅ PR pattern analysis (contributor playbooks)
 - ✅ Live progress streaming
 - ✅ Cached analyses
-- ⏳ Pull request generation
-- ⏳ Repository onboarding
 - ⏳ Interactive code walkthroughs
 - ⏳ Team knowledge sharing
 

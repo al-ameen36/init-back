@@ -137,14 +137,16 @@ class PRStats(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    avg_time_to_merge_hours: float
-    avg_files_changed: float
-    avg_insertions: float
-    avg_deletions: float
-    median_review_rounds: int
-    merge_rate_with_tests: float  # fraction (0.0–1.0) of PRs with tests
-    merge_rate_with_linked_issue: float  # fraction (0.0–1.0) of PRs linking issues
-    merge_rate_conventional_title: float  # fraction using conventional commits
+    min_time_to_merge_hours: float
+    max_time_to_merge_hours: float
+    min_files_changed: int
+    max_files_changed: int
+    min_insertions: int
+    max_insertions: int
+    min_deletions: int
+    max_deletions: int
+    min_review_rounds: int
+    max_review_rounds: int
 
 
 class ContributorPlaybook(BaseModel):

@@ -3,12 +3,12 @@ import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
-import graph_sitter_patch  # noqa: F401  side-effect: make graph_sitter tolerate unparseable files
+import features.graph_sitter_patch  # noqa: F401  side-effect: make graph_sitter tolerate unparseable files
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from supabase_client import init_supabase
+from features.supabase import init_supabase
 from routes import (
     developer_router,
     issues_router,

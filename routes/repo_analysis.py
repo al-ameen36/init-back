@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import requests
-from supabase_client import get_supabase
+from features.supabase import get_supabase
 
 from features.llm import generate_investigation_guide, score_files, analyze_issue
 from features.code_graph import ensure_graph, graph_search, list_file_paths

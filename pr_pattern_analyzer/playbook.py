@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import statistics
 from pathlib import Path
 
 from .llm import chat_json
@@ -41,29 +40,32 @@ def compute_stats(facts: list[PRFact]) -> PRStats:
     n = len(facts)
     if n == 0:
         return PRStats(
-            avg_time_to_merge_hours=0.0,
-            avg_files_changed=0.0,
-            avg_insertions=0.0,
-            avg_deletions=0.0,
-            median_review_rounds=0,
-            merge_rate_with_tests=0.0,
-            merge_rate_with_linked_issue=0.0,
-            merge_rate_conventional_title=0.0,
+            min_time_to_merge_hours=0.0,
+            max_time_to_merge_hours=0.0,
+            min_files_changed=0,
+            max_files_changed=0,
+            min_insertions=0,
+            max_insertions=0,
+            min_deletions=0,
+            max_deletions=0,
+            min_review_rounds=0,
+            max_review_rounds=0,
         )
     merge_times = [f.time_to_merge_hours for f in facts]
+    files = [f.files_changed for f in facts]
+    insertions = [f.insertions for f in facts]
+    deletions = [f.deletions for f in facts]
     return PRStats(
-        avg_time_to_merge_hours=round(statistics.mean(merge_times), 1),
-        avg_files_changed=round(statistics.mean(f.files_changed for f in facts), 1),
-        avg_insertions=round(statistics.mean(f.insertions for f in facts), 1),
-        avg_deletions=round(statistics.mean(f.deletions for f in facts), 1),
-        median_review_rounds=round(statistics.median(f.review_rounds for f in facts)),
-        merge_rate_with_tests=round(sum(1 for f in facts if f.has_tests) / n, 2),
-        merge_rate_with_linked_issue=round(
-            sum(1 for f in facts if f.linked_issue) / n, 2
-        ),
-        merge_rate_conventional_title=round(
-            sum(1 for f in facts if f.title_conventional) / n, 2
-        ),
+        min_time_to_merge_hours=round(min(merge_times), 1),
+        max_time_to_merge_hours=round(max(merge_times), 1),
+        min_files_changed=min(files),
+        max_files_changed=max(files),
+        min_insertions=min(insertions),
+        max_insertions=max(insertions),
+        min_deletions=min(deletions),
+        max_deletions=max(deletions),
+        min_review_rounds=min(f.review_rounds for f in facts),
+        max_review_rounds=max(f.review_rounds for f in facts),
     )
 
 

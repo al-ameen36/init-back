@@ -16,7 +16,7 @@ from features.events import (
     serialize,
 )
 
-from models.developer import (
+from features.developer_models import (
     AnalyzeDeveloperRequest,
     AnalyzeDeveloperResponse,
 )

@@ -18,14 +18,18 @@ Run `just format` (or at least `ty check`) after edits.
 
 - `main.py` — app, CORS, request-logging middleware, router includes, lifespan
   (inits Supabase).
-- `app/auth.py` — `get_current_user` verifies Supabase JWTs via JWKS.
-- `supabase_client.py` — async Supabase client (`get_supabase()`).
+- `features/auth.py` — `get_current_user` verifies Supabase JWTs via JWKS.
+- `features/supabase.py` — async Supabase client (`get_supabase()`).
+- `features/graph_sitter_patch.py` — side-effect import that makes graph_sitter tolerate unparseable files.
+- `features/developer_models.py` — Pydantic models for developer analysis (Request/Response/Event).
 - `routes/` — one router per domain: `developer` (SSE profile analysis),
   `gh_issues` (`/issues/{repo}`), `repo` (`/repo/{owner}/{name}`),
-  `repo_analysis` (`POST /analyze/`), `auth` (`/auth/me`), `github_stats`.
+  `repo_analysis` (`POST /analyze/`), `auth` (`/auth/me`), `github_stats`,
+  `pr_pattern` (`/pr-pattern/analyze`).
 - `features/` — business logic: `developer`, `events` (per-job `asyncio.Queue`),
   `gh_issues`, `github`, `technologies`, `llm`, `search`.
-- `models/` — Pydantic request/response models.
+- `pr_pattern_analyzer/` — PR pattern analysis: `evidence` (git-based collection),
+  `playbook` (LLM synthesis), `models` (PRFact, ContributorPlaybook, PRStats).
 - `graph_store/` — parser-agnostic code-graph persistence layer. Apps depend on
   the `GraphStore` **interface** (`graph_store/base.py`), not on Memgraph.
   `MemgraphGraphStore` is the backend (Bolt/`neo4j` driver); `InMemoryGraphStore`

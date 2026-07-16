@@ -6,7 +6,7 @@ import uuid
 
 from dataclasses import dataclass, field
 
-from models.developer import AnalysisEvent
+from features.developer_models import AnalysisEvent
 
 logger = logging.getLogger("init")
 
