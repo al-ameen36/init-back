@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import shutil
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from features.auth import get_current_user
@@ -27,6 +30,7 @@ pr_pattern_router = APIRouter(
 
 DEFAULT_LIMIT = 5
 MAX_LIMIT = 20
+MAX_WORKERS = 5
 
 CONVENTIONAL_RE = re.compile(
     r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)"
@@ -168,9 +172,34 @@ def _clone(owner: str, name: str) -> str:
     return tmp
 
 
+def _process_pr(repo_path: str, owner: str, name: str, pr_meta: dict) -> PRFact | None:
+    """Process a single PR in a worker thread.
+
+    Creates its own EvidenceCollector so the GitPython Repo object is not
+    shared across threads.
+    """
+    try:
+        collector = EvidenceCollector(repo_path)
+        evidence = collector.collect(pr_meta["sha"])
+        reviews = _fetch_review_count(owner, name, pr_meta["number"])
+        return _build_fact(pr_meta, evidence, reviews)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("PR #%d processing failed: %s", pr_meta["number"], exc)
+        return None
+
+
+def _sse(payload: dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
 @pr_pattern_router.post("/analyze")
-async def analyze_repository(request: RepoAnalyzeRequest) -> dict:
-    """Analyze a repo's recent merged PRs into a ContributorPlaybook."""
+async def analyze_repository(request: RepoAnalyzeRequest) -> StreamingResponse:
+    """Analyze a repo's recent merged PRs into a ContributorPlaybook.
+
+    Returns an SSE stream. For cache hits the stream emits a single ``result``
+    frame. For fresh analyses it emits ``status`` and ``progress`` frames as
+    PRs are processed in parallel, followed by the final ``result`` frame.
+    """
     owner, name = _split(request.repo)
     limit = max(1, min(request.limit, MAX_LIMIT))
 
@@ -191,12 +220,16 @@ async def analyze_repository(request: RepoAnalyzeRequest) -> dict:
                 row: dict[str, Any] = json.loads(json.dumps(res.data))
                 playbook: dict[str, Any] = dict(row["playbook"])
                 playbook["updated_at"] = row["updated_at"]
-                return playbook
+
+                async def cached_gen():
+                    yield _sse({"type": "result", "playbook": playbook})
+
+                return StreamingResponse(cached_gen(), media_type="text/event-stream")
             logger.info("playbook cache miss for %s", request.repo)
         except Exception as exc:  # noqa: BLE001
             logger.warning("playbook cache read failed for %s: %s", request.repo, exc)
 
-    # --- Fresh analysis ------------------------------------------------------
+    # --- Prep (clone + fetch PR list) — must succeed before streaming --------
     try:
         pr_metas = _merged_prs(owner, name, limit)
         if not pr_metas:
@@ -208,51 +241,84 @@ async def analyze_repository(request: RepoAnalyzeRequest) -> dict:
         logger.exception("pr-pattern prep failed for %s/%s", owner, name)
         raise HTTPException(status_code=502, detail=f"Failed to prepare repo: {exc}")
 
-    try:
-        collector = EvidenceCollector(tmp)
+    # --- Stream parallel analysis -------------------------------------------
+    async def event_gen():
+        total = len(pr_metas)
+        yield _sse(
+            {
+                "type": "status",
+                "message": f"Analyzing {total} merged PR{'s' if total != 1 else ''}…",
+            }
+        )
+
         facts: list[PRFact] = []
-        for pr_meta in pr_metas:
-            try:
-                evidence = collector.collect(pr_meta["sha"])
-                reviews = _fetch_review_count(owner, name, pr_meta["number"])
-                facts.append(_build_fact(pr_meta, evidence, reviews))
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "PR #%d evidence collection failed: %s", pr_meta["number"], exc
-                )
-        if not facts:
-            raise HTTPException(
-                status_code=502, detail="All PR evidence collection failed"
-            )
-        generated = build_playbook(facts, request.repo)
-        result = generated.model_dump()
+        try:
+            loop = asyncio.get_running_loop()
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+                futures = [
+                    loop.run_in_executor(pool, _process_pr, tmp, owner, name, pr_meta)
+                    for pr_meta in pr_metas
+                ]
 
-        # --- Persist to cache ------------------------------------------------
-        if supabase:
-            try:
-                now = datetime.now(timezone.utc).isoformat()
-                await (
-                    supabase.table("playbooks")
-                    .upsert(
+                completed = 0
+                for coro in asyncio.as_completed(futures):
+                    fact = await coro
+                    if fact is not None:
+                        facts.append(fact)
+                    completed += 1
+                    yield _sse(
                         {
-                            "repo": request.repo,
-                            "playbook": result,
-                            "prs_analyzed": result.get("prs_analyzed", len(facts)),
-                            "updated_at": now,
-                        },
-                        on_conflict="repo",
+                            "type": "progress",
+                            "message": f"Analyzed PR {completed}/{total}",
+                            "current": completed,
+                            "total": total,
+                        }
                     )
-                    .execute()
-                )
-                logger.info("playbook cached for %s", request.repo)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "playbook cache write failed for %s: %s", request.repo, exc
-                )
 
-        return result
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+            if not facts:
+                yield _sse(
+                    {
+                        "type": "error",
+                        "message": "All PR evidence collection failed",
+                    }
+                )
+                return
+
+            yield _sse({"type": "status", "message": "Generating playbook…"})
+
+            generated = build_playbook(facts, request.repo)
+            result = generated.model_dump()
+
+            # --- Persist to cache -------------------------------------------
+            if supabase:
+                try:
+                    now = datetime.now(timezone.utc).isoformat()
+                    await (
+                        supabase.table("playbooks")
+                        .upsert(
+                            {
+                                "repo": request.repo,
+                                "playbook": result,
+                                "prs_analyzed": result.get("prs_analyzed", len(facts)),
+                                "updated_at": now,
+                            },
+                            on_conflict="repo",
+                        )
+                        .execute()
+                    )
+                    logger.info("playbook cached for %s", request.repo)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "playbook cache write failed for %s: %s",
+                        request.repo,
+                        exc,
+                    )
+
+            yield _sse({"type": "result", "playbook": result})
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 @pr_pattern_router.post("/pr")

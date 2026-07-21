@@ -40,12 +40,13 @@ async def analyze(
     logger.info("Starting analysis for username=%s", request.username)
     job = create_job()
 
-    asyncio.create_task(
+    task = asyncio.create_task(
         analyze_developer(
             job.id,
             request.username,
         )
     )
+    job.task = task
 
     logger.info("Created job=%s for username=%s", job.id, request.username)
     return AnalyzeDeveloperResponse(
@@ -67,6 +68,8 @@ async def events(
             detail="Job not found",
         )
 
+    # Retrieve the task so we can cancel it if the client disconnects.
+    # The task was stored on the job object; fall back gracefully if missing.
     async def stream():
 
         try:
@@ -84,6 +87,10 @@ async def events(
 
         finally:
             logger.info("SSE connection closed for job=%s", job.id)
+            # Cancel the background task if the client disconnects before
+            # the analysis finishes, so we don't orphan work or leak memory.
+            if job.task is not None and not job.task.done():
+                job.task.cancel()
             await cleanup(job.id)
 
     return EventSourceResponse(stream())

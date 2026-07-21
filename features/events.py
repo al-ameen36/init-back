@@ -5,6 +5,7 @@ import logging
 import uuid
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from features.developer_models import AnalysisEvent
 
@@ -16,6 +17,7 @@ class Job:
     id: str
     queue: asyncio.Queue[AnalysisEvent] = field(default_factory=asyncio.Queue)
     done: bool = False
+    task: asyncio.Task[Any] | None = None
 
 
 _jobs: dict[str, Job] = {}

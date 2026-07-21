@@ -9,7 +9,6 @@ project's JWKS endpoint. Protect any route by adding
 import logging
 import os
 import time
-from typing import Optional
 
 import httpx
 from fastapi import HTTPException, Request
@@ -44,7 +43,7 @@ async def _get_jwks() -> dict:
     return jwks
 
 
-async def verify_supabase_token(token: str) -> Optional[dict]:
+async def verify_supabase_token(token: str) -> dict | None:
     """Verify a Supabase JWT against the project JWKS. Returns the payload or None."""
     try:
         jwks = await _get_jwks()
@@ -59,7 +58,7 @@ async def verify_supabase_token(token: str) -> Optional[dict]:
         return None
 
 
-def _extract_token(request: Request) -> Optional[str]:
+def _extract_token(request: Request) -> str | None:
     """Pull the Supabase access token from the ``Authorization`` header or the
     httpOnly session cookie (used by browser ``EventSource`` / fetch with
     credentials, which cannot set custom headers)."""

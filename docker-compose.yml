@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   memgraph:
-    image: memgraph/memgraph:latest
+    image: memgraph/memgraph:2.21.0
     ports:
       - "7687:7687"
     # IN_MEMORY_TRANSACTIONAL is the default; mount a volume for durability.

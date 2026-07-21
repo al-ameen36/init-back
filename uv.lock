@@ -149,10 +149,14 @@ dependencies = [
     { name = "openai" },
     { name = "pygithub" },
     { name = "python-jose", extra = ["cryptography"] },
-    { name = "ruff" },
-    { name = "rust-just" },
     { name = "sse-starlette" },
     { name = "supabase" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+    { name = "rust-just" },
     { name = "ty" },
 ]
 
@@ -167,10 +171,14 @@ requires-dist = [
     { name = "openai", specifier = ">=1.109.1" },
     { name = "pygithub", specifier = ">=2.8.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.3.0" },
-    { name = "ruff", specifier = ">=0.15.20" },
-    { name = "rust-just", specifier = ">=1.55.1" },
     { name = "sse-starlette", specifier = ">=2.1.0" },
     { name = "supabase", specifier = ">=2.15.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "ruff", specifier = ">=0.15.20" },
+    { name = "rust-just", specifier = ">=1.55.1" },
     { name = "ty", specifier = ">=0.0.56" },
 ]
 
