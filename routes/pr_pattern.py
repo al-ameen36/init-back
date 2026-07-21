@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import AsyncGenerator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
@@ -172,7 +173,9 @@ def _clone(owner: str, name: str) -> str:
     return tmp
 
 
-def _process_pr(repo_path: str, owner: str, name: str, pr_meta: dict) -> PRFact | None:
+def _process_pr(
+    repo_path: str, owner: str, name: str, pr_meta: dict
+) -> tuple[PRFact | None, str | None]:
     """Process a single PR in a worker thread.
 
     Creates its own EvidenceCollector so the GitPython Repo object is not
@@ -182,10 +185,10 @@ def _process_pr(repo_path: str, owner: str, name: str, pr_meta: dict) -> PRFact 
         collector = EvidenceCollector(repo_path)
         evidence = collector.collect(pr_meta["sha"])
         reviews = _fetch_review_count(owner, name, pr_meta["number"])
-        return _build_fact(pr_meta, evidence, reviews)
+        return _build_fact(pr_meta, evidence, reviews), None
     except Exception as exc:  # noqa: BLE001
         logger.warning("PR #%d processing failed: %s", pr_meta["number"], exc)
-        return None
+        return None, f"PR #{pr_meta['number']}: {exc}"
 
 
 def _sse(payload: dict[str, Any]) -> str:
@@ -221,7 +224,7 @@ async def analyze_repository(request: RepoAnalyzeRequest) -> StreamingResponse:
                 playbook: dict[str, Any] = dict(row["playbook"])
                 playbook["updated_at"] = row["updated_at"]
 
-                async def cached_gen():
+                async def cached_gen() -> AsyncGenerator[str, None]:
                     yield _sse({"type": "result", "playbook": playbook})
 
                 return StreamingResponse(cached_gen(), media_type="text/event-stream")
@@ -252,6 +255,7 @@ async def analyze_repository(request: RepoAnalyzeRequest) -> StreamingResponse:
         )
 
         facts: list[PRFact] = []
+        errors: list[str] = []
         try:
             loop = asyncio.get_running_loop()
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
@@ -262,9 +266,11 @@ async def analyze_repository(request: RepoAnalyzeRequest) -> StreamingResponse:
 
                 completed = 0
                 for coro in asyncio.as_completed(futures):
-                    fact = await coro
+                    fact, error = await coro
                     if fact is not None:
                         facts.append(fact)
+                    if error is not None:
+                        errors.append(error)
                     completed += 1
                     yield _sse(
                         {
@@ -276,10 +282,13 @@ async def analyze_repository(request: RepoAnalyzeRequest) -> StreamingResponse:
                     )
 
             if not facts:
+                msg = "All PR evidence collection failed"
+                if errors:
+                    msg += " with errors:\n" + "\n".join(errors)
                 yield _sse(
                     {
                         "type": "error",
-                        "message": "All PR evidence collection failed",
+                        "message": msg,
                     }
                 )
                 return
