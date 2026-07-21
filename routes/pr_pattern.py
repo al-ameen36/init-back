@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Any
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +15,7 @@ from pydantic import BaseModel
 
 from features.auth import get_current_user
 from features.github import BASE_URL, GITHUB_TOKEN, HEADERS
+from features.supabase import get_supabase
 from pr_pattern_analyzer import EvidenceCollector, build_playbook
 from pr_pattern_analyzer.models import PRFact
 
@@ -37,6 +40,7 @@ ISSUE_RE = re.compile(r"(?:closes|fixes|resolves)\s+#\d+", re.IGNORECASE)
 class RepoAnalyzeRequest(BaseModel):
     repo: str
     limit: int = DEFAULT_LIMIT
+    force: bool = False
 
 
 class PrAnalyzeRequest(BaseModel):
@@ -165,10 +169,34 @@ def _clone(owner: str, name: str) -> str:
 
 
 @pr_pattern_router.post("/analyze")
-def analyze_repository(request: RepoAnalyzeRequest) -> dict:
+async def analyze_repository(request: RepoAnalyzeRequest) -> dict:
     """Analyze a repo's recent merged PRs into a ContributorPlaybook."""
     owner, name = _split(request.repo)
     limit = max(1, min(request.limit, MAX_LIMIT))
+
+    # --- Check cache ---------------------------------------------------------
+    supabase = get_supabase()
+    if supabase and not request.force:
+        try:
+            res = (
+                await supabase.table("playbooks")
+                .select("playbook, updated_at")
+                .eq("repo", request.repo)
+                .limit(1)
+                .maybe_single()
+                .execute()
+            )
+            if res and res.data:
+                logger.info("playbook cache hit for %s", request.repo)
+                row: dict[str, Any] = json.loads(json.dumps(res.data))
+                playbook: dict[str, Any] = dict(row["playbook"])
+                playbook["updated_at"] = row["updated_at"]
+                return playbook
+            logger.info("playbook cache miss for %s", request.repo)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("playbook cache read failed for %s: %s", request.repo, exc)
+
+    # --- Fresh analysis ------------------------------------------------------
     try:
         pr_metas = _merged_prs(owner, name, limit)
         if not pr_metas:
@@ -196,8 +224,33 @@ def analyze_repository(request: RepoAnalyzeRequest) -> dict:
             raise HTTPException(
                 status_code=502, detail="All PR evidence collection failed"
             )
-        playbook = build_playbook(facts, request.repo)
-        return playbook.model_dump()
+        generated = build_playbook(facts, request.repo)
+        result = generated.model_dump()
+
+        # --- Persist to cache ------------------------------------------------
+        if supabase:
+            try:
+                now = datetime.now(timezone.utc).isoformat()
+                await (
+                    supabase.table("playbooks")
+                    .upsert(
+                        {
+                            "repo": request.repo,
+                            "playbook": result,
+                            "prs_analyzed": result.get("prs_analyzed", len(facts)),
+                            "updated_at": now,
+                        },
+                        on_conflict="repo",
+                    )
+                    .execute()
+                )
+                logger.info("playbook cached for %s", request.repo)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "playbook cache write failed for %s: %s", request.repo, exc
+                )
+
+        return result
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
