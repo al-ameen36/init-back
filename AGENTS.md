@@ -18,61 +18,47 @@ Run `just format` (or at least `ty check`) after edits.
 
 - `main.py` — app, CORS, request-logging middleware, router includes, lifespan
   (inits Supabase).
-- `features/auth.py` — `get_current_user` verifies Supabase JWTs via JWKS.
-- `features/supabase.py` — async Supabase client (`get_supabase()`).
-- `features/graph_sitter_patch.py` — side-effect import that makes graph_sitter tolerate unparseable files.
-- `features/developer_models.py` — Pydantic models for developer analysis (Request/Response/Event).
-- `routes/` — one router per domain: `developer` (SSE profile analysis),
-  `gh_issues` (`/issues/{repo}`), `repo` (`/repo/{owner}/{name}`),
-  `repo_analysis` (`POST /analyze/`), `auth` (`/auth/me`), `github_stats`,
-  `pr_pattern` (`/pr-pattern/analyze`).
-- `features/` — business logic: `developer`, `events` (per-job `asyncio.Queue`),
-  `gh_issues`, `github`, `technologies`, `llm`, `search`.
-- `pr_pattern_analyzer/` — PR pattern analysis: `evidence` (git-based collection),
-  `playbook` (LLM synthesis), `models` (PRFact, ContributorPlaybook, PRStats).
-- `graph_store/` — parser-agnostic code-graph persistence layer. Apps depend on
-  the `GraphStore` **interface** (`graph_store/base.py`), not on Memgraph.
-  `MemgraphGraphStore` is the backend (Bolt/`neo4j` driver); `InMemoryGraphStore`
-  is the test double. Get an instance via `graph_store.get_graph_store()`
-  (reads `MEMGRAPH_URI`). Memgraph runs as its own `docker-compose` service.
-- `features/code_graph.py` — bridges the parser (`graph_sitter.Codebase`) and the
-  store. `ensure_graph(repo)` is the cache gate: it parses *once* and persists to
-  Memgraph; later calls return the existing graph (no re-parse). `graph_search`
-  + `list_file_paths` let `routes/repo_analysis.py` run entirely off the store,
-  with no live `Codebase` object.
+- `features/` — business logic:
+  - `auth.py` — `get_current_user` verifies Supabase JWTs via JWKS.
+  - `supabase.py` — async Supabase client (`get_supabase()`).
+  - `graph_sitter_patch.py` — side-effect import that makes graph_sitter
+    unit-fault-tolerant (recursion limits, body-less symbols, unresolvable
+    imports, per-unit dependency failures, top-level `build_graph` safety net).
+  - `developer.py` / `developer_models.py` — developer profile analysis + Pydantic models.
+  - `events.py` — per-job `asyncio.Queue` for SSE.
+  - `code_graph.py` — bridges `graph_sitter.Codebase` and the graph store.
+    `ensure_graph(repo)` parses once and persists to Memgraph; `graph_search`
+    + `list_file_paths` query the store without a live `Codebase`.
+  - `github.py`, `gh_issues.py`, `technologies.py`, `llm.py`, `search.py`.
+- `routes/` — one router per domain: `developer`, `gh_issues`, `repo`,
+  `repo_analysis`, `auth`, `github_stats`, `pr_pattern`.
+- `pr_pattern_analyzer/` — PR pattern analysis: `evidence`, `playbook`, `models`.
+- `graph_store/` — code-graph persistence. `GraphStore` interface
+  (`graph_store/base.py`); `MemgraphGraphStore` (Bolt) and `InMemoryGraphStore`
+  (test double). Get via `graph_store.get_graph_store()` (reads `MEMGRAPH_URI`).
+- `models/` — shared Pydantic request/response models.
+- `sql/` — Supabase table schemas and RLS policies.
+- `tools/` — helper scripts (e.g. `analyse.mjs` for `@specfy/stack-analyser`).
 
 ## SSE contracts
 
-- Developer analysis: `POST /developer/analyze` → `{job_id}`; the frontend opens
-  `GET /developer/events/{job_id}` as an `EventSource`. Each frame is
-  `{ "step": ..., "status": ..., "data": {...} }`; the frontend reads the
-  nested `data` field. Steps: `profile`, `repositories`, `languages`,
-  `technologies`, `pull_requests`, `completed`, plus `error`.
-- Issue analysis: `POST /analyze/` streams `text/event-stream` frames
-  `{ "type": "status"|"result"|"error", ... }`. A `result` carries
-  `analysis: AnalyzeResponse`; an `error` may carry a `number` (per-issue) or
-  not (batch-level). The frontend parses these manually in
-  `init-front/src/lib/api.ts` (`analyzeIssuesStream`).
-
-## Caching & persistence
-
-- Finished issue analyses are upserted into the Supabase `analysis` table,
-  unique on `(repo, issue_number, profile_key)`. Cached results are emitted
-  first on the next request (set `force: true` to bypass).
-- `profiles` and `repositories` tables back the frontend contexts.
+- Developer analysis: `POST /developer/analyze` → `{job_id}`; frontend opens
+  `GET /developer/events/{job_id}`. Frames: `{ "step", "status", "data" }`.
+  Steps: `profile`, `repositories`, `languages`, `technologies`,
+  `pull_requests`, `completed`, `error`.
+- Issue analysis: `POST /analyze/` streams `{ "type": "status"|"result"|"error" }`.
+  A `result` carries `analysis: AnalyzeResponse`.
 
 ## Conventions
 
-- Keep response models in `models/`. Don't return bare dicts from routers
-  without a reason.
-- `graph-sitter` `Codebase.from_repo` is slow — build it once per batch and
-  reuse (see `routes/repo_analysis.py`).
-- Long work must stream; don't block a request waiting for the full batch.
+- Keep response models in `models/`. Don't return bare dicts.
+- `Codebase.from_repo` is slow — build once per batch and reuse.
+- Long work must stream; don't block a request for the full batch.
 
 ## Gotchas
 
-- `.env` is **not** auto-loaded by `requests`/`pygithub`; the token must be in
-  the real environment. `GITHUB_TOKEN` is required to avoid 403s.
-- `OPENAI_BASE_URL` / `OPENAI_MODEL` in `.env.example` are placeholders.
+- `.env` is **not** auto-loaded by `requests`/`pygithub`. `GITHUB_TOKEN` is
+  required to avoid 403s.
+- All API routes require a valid Supabase JWT via `Depends(get_current_user)`.
+- Docker Compose runs Memgraph as a separate service (`bolt://memgraph:7687`).
 - CORS allows only `localhost`/`127.0.0.1` on ports `3000` and `5173`.
-- Only `/auth/me` enforces auth today; other routes are public by design.
