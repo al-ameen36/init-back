@@ -239,10 +239,15 @@ SourceFile.from_content = _safe_from_content  # ty: ignore
 
 _original_symbol_init = Symbol.__init__
 
+# Ensure code_block always exists as an instance attribute default, even if
+# __init__ is bypassed (e.g. __new__, unpickling, factory methods).
+setattr(Symbol, "code_block", None)  # type: ignore[attr-defined]
+
 
 def _safe_symbol_init(
     self, ts_node, file_id, ctx, parent, name_node=None, name_node_type=DefinedName
 ):
+    self.code_block = None
     super(Symbol, self).__init__(ts_node, file_id, ctx, parent)
     name_node = self._get_name_node(ts_node) if name_node is None else name_node
     self._name_node = self._parse_expression(name_node, default=name_node_type)
@@ -276,6 +281,24 @@ def _safe_ns_compute(self, usage_type=None, dest=None):
 
 
 TSNamespace._compute_dependencies = _safe_ns_compute
+
+
+# ===== [ Fix 3d: body-less symbols crash descendant_symbols ] =====
+# `Symbol.descendant_symbols` unconditionally accesses
+# `self.code_block.descendant_symbols`. With Fix 3b a body-less symbol
+# legitimately has `code_block is None`, raising AttributeError.
+
+
+_original_descendant_symbols = Symbol.descendant_symbols.fget
+
+
+def _safe_descendant_symbols(self):
+    if self.code_block is None:
+        return [self]
+    return _original_descendant_symbols(self)
+
+
+Symbol.descendant_symbols = property(_safe_descendant_symbols)  # ty: ignore
 
 
 # ===== [ Fix 4: tolerate unresolvable import paths ] =====
