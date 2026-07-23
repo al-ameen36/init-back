@@ -5,22 +5,22 @@ description = "GitHub issue analyser and developer profile tool"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0",
-    "graph-sitter>=0.56.14",
+    "fastapi==0.139.0",
+    "graph-sitter==0.56.14",
     "mini-racer==0.12.4",
-    "httpx>=0.28.0",
-    "neo4j>=6.0",
-    "openai>=1.109.1",
-    "pygithub>=2.8.1",
-    "python-jose[cryptography]>=3.3.0",
-    "sse-starlette>=2.1.0",
-    "supabase>=2.15.0",
-    "langgraph>=1.2.9",
+    "httpx==0.28.1",
+    "neo4j==6.2.0",
+    "openai==1.109.1",
+    "pygithub==2.8.1",
+    "python-jose[cryptography]==3.5.0",
+    "sse-starlette==3.4.5",
+    "supabase==2.31.0",
+    "langgraph==1.2.9",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15.20",
-    "rust-just>=1.55.1",
-    "ty>=0.0.56",
+    "ruff==0.15.20",
+    "rust-just==1.55.1",
+    "ty==0.0.56",
 ]
